@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lampa Plugins – SimSomNat</title>
+<style>
+  body{font:16px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif;max-width:820px;margin:40px auto;padding:0 16px;background:#0b1220;color:#e7eefc}
+  h1{font-size:26px;margin:0 0 12px}
+  .hint{opacity:.8;margin:0 0 18px}
+  ul{list-style:none;padding:0;margin:0}
+  li{background:#111a2a;border:1px solid #1c2a44;border-radius:12px;padding:12px 14px;margin:10px 0}
+  a{color:#9cc3ff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  small{opacity:.7}
+</style>
+
+<h1>Lampa Plugins</h1>
+<p class="hint">Кликаешь → копируешь ссылку в Lampa. Для обновления у ссылок есть параметр версии.</p>
+<ul id="list"><li>Загружаю список…</li></ul>
+
+<script>
+const user='SimSomNat', repo='lampa-plg', branch='main';
+const pagesBase=`https://${user.toLowerCase()}.github.io/${repo}/`;
+const rawBase=`https://raw.githubusercontent.com/${user}/${repo}/${branch}/`;
+const cdnBase=`https://cdn.jsdelivr.net/gh/${user}/${repo}@${branch}/`;
+const v='?v='+Date.now();
+
+async function walk(path=''){
+  const r=await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${path}?ref=${branch}`);
+  const items=await r.json();
+  if(!Array.isArray(items)) throw new Error('GitHub API limit or error');
+  for(const it of items){
+    if(it.type==='file' && it.name.endsWith('.js')) add(it.path);
+    if(it.type==='dir') await walk(it.path);
+  }
+}
+function add(p){
+  const li=document.createElement('li');
+  li.innerHTML = `<strong>${p}</strong><br>
+    <a href="${pagesBase}${p}${v}">GitHub Pages</a> •
+    <a href="${cdnBase}${p}${v}">jsDelivr</a> •
+    <a href="${rawBase}${p}">RAW</a>
+    <br><small>Добавляй в Lampa любую из первых двух ссылок.</small>`;
+  document.getElementById('list').appendChild(li);
+}
+walk().then(()=>document.querySelector('#list li')?.remove())
+.catch(()=>{
+  const ul=document.getElementById('list');
+  ul.innerHTML='';
+  add('LocalBackup.js'); // запасной вариант
+});
+</script>
+</html>
