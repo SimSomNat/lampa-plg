@@ -8,13 +8,37 @@
     return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+'-'+p(d.getMinutes())+'-'+p(d.getSeconds());
   }
 
-  function collectBackup() {
-    var dump = {};
+  function getLS(key){
+    var raw = localStorage.getItem(key);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch(_) { return raw; }
+  }
+  function setLS(key, val){
+    if (typeof val === 'object') localStorage.setItem(key, JSON.stringify(val));
+    else localStorage.setItem(key, String(val));
+  }
+
+  function collectUserData(){
+    var out = { storage: {}, __meta__: { created_at: new Date().toISOString(), filename: 'lampa_user_'+nowStamp()+'.json' } };
+
+    // 1) favorite.{book,history,viewed,continued}
+    var fav = getLS('favorite') || {};
+    var favOut = {};
+    ['book','history','viewed','continued'].forEach(function(k){
+      if (fav && typeof fav === 'object' && k in fav) favOut[k] = fav[k];
+    });
+    if (Object.keys(favOut).length) out.storage['favorite'] = favOut;
+
+    // 2) профили: все ключи с profile/profiles + account_user
     for (var i=0;i<localStorage.length;i++){
-      var k = localStorage.key(i), v = localStorage.getItem(k);
-      try { dump[k] = JSON.parse(v); } catch(_) { dump[k] = v; }
+      var k = localStorage.key(i);
+      if (!k) continue;
+      var lk = k.toLowerCase();
+      if (lk.includes('profile')) out.storage[k] = getLS(k);
+      if (k === 'account_user') out.storage[k] = getLS(k);
     }
-    return { __meta__: { filename: 'lampa_backup_'+nowStamp()+'.json', created_at: new Date().toISOString() }, storage: dump };
+
+    return out;
   }
 
   function saveBlob(filename, blob) {
@@ -27,9 +51,7 @@
       return true;
     } catch(_) { return false; }
   }
-
   function fallbackModal(jsonText) {
-    // Фолбэк на случай, если WebView не даёт скачать файл
     Lampa.Select.show({
       title: 'Экспорт',
       items: [{title:'Показать JSON для копирования'}],
@@ -52,29 +74,25 @@
     });
   }
 
-  function confirmYesNo(title, question, cbYes){
+  function confirmYesNo(title, onYes){
     Lampa.Select.show({
       title: title,
-      items: [{title:'Да', yes:true}, {title:'Отмена', cancel:true}],
-      onSelect: function(it){
-        if (it.yes) cbYes();
-        else Lampa.Noty.show('Отменено');
-        Lampa.Controller.toggle('settings');
-      },
-      onBack: function(){ Lampa.Controller.toggle('settings'); }
+      items: [{title:'Да', yes:true}, {title:'Отмена'}],
+      onSelect: function(it){ if (it.yes) onYes(); else Lampa.Noty.show('Отменено'); Lampa.Controller.toggle('settings'); },
+      onBack:   function(){ Lampa.Controller.toggle('settings'); }
     });
   }
 
-  function doExport() {
-    confirmYesNo('Экспорт', 'Сохранить бэкап?', function(){
-      try {
-        var data = collectBackup();
+  function doExport(){
+    confirmYesNo('Сохранить бэкап?', function(){
+      try{
+        var data = collectUserData();
         var json = JSON.stringify(data, null, 2);
         var blob = new Blob([json], { type:'application/json;charset=utf-8' });
         var ok = saveBlob(data.__meta__.filename, blob);
         if (ok) Lampa.Noty.show('Экспорт начат');
         else { fallbackModal(json); Lampa.Noty.show('Экспорт'); }
-      } catch(_) { Lampa.Noty.show('Ошибка'); }
+      }catch(_){ Lampa.Noty.show('Ошибка'); }
     });
   }
 
@@ -83,9 +101,7 @@
       var r = new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('read_error')); r.readAsText(file);
     });
   }
-
-  function doImport() {
-    // выбор файла
+  function doImport(){
     var input = document.createElement('input');
     input.type = 'file'; input.accept = 'application/json'; input.style.display='none';
     document.body.appendChild(input); input.click();
@@ -95,16 +111,28 @@
       input.remove();
       if (!file) return;
 
-      confirmYesNo('Импорт', 'Импортировать бэкап?', async function(){
+      confirmYesNo('Импортировать бэкап?', async function(){
         try{
           var text = await readFileAsText(file);
           var parsed = JSON.parse(text);
-          var data = parsed.storage || parsed;
-          Object.keys(data||{}).forEach(function(k){
-            var v = data[k];
-            if (typeof v === 'object') localStorage.setItem(k, JSON.stringify(v));
-            else localStorage.setItem(k, String(v));
+          var st = (parsed && parsed.storage) ? parsed.storage : parsed;
+
+          // favorite merge
+          if (st.favorite && typeof st.favorite === 'object'){
+            var cur = getLS('favorite') || {};
+            ['book','history','viewed','continued'].forEach(function(k){
+              if (k in st.favorite) cur[k] = st.favorite[k];
+            });
+            setLS('favorite', cur);
+          }
+
+          // profiles + account_user
+          Object.keys(st).forEach(function(k){
+            var lk = k.toLowerCase();
+            if (k === 'favorite') return;
+            if (lk.includes('profile') || k === 'account_user') setLS(k, st[k]);
           });
+
           Lampa.Noty.show('Импорт завершён');
         }catch(_){ Lampa.Noty.show('Ошибка'); }
       });
