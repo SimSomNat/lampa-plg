@@ -1,9 +1,19 @@
-// @lampa-desc: Полный локальный бэкап Lampa: все настройки, плагины, закладки и история.
+// @lampa-desc: Локальный бэкап (только плагины, избранное, прогресс, торренты, история поиска, сортировка меню)
 
 (function () {
   'use strict';
 
-  var COMPONENT = 'local_backup_full';
+  var COMPONENT = 'local_backup_selected';
+
+  // === Конфиг — какие ключи сохраняем ===
+  var KEYS = [
+    'plugins',         // список плагинов (URL-ы и порядок)
+    'favorite',        // закладки/избранное
+    'file_view',       // прогресс просмотра файлов
+    'torrents_view',   // выбранные файлы/прогресс в торрентах
+    'search_history',  // история поиска
+    'menu_sort'        // сортировка бокового меню
+  ];
 
   // ---------- утилиты ----------
   function nowStamp() {
@@ -21,15 +31,11 @@
     else localStorage.setItem(key, String(val));
   }
 
-  // ---------- сбор ВСЕГО ----------
-  function collectAll(){
-    var storageDump = {};
-    for (var i=0;i<localStorage.length;i++){
-      var k = localStorage.key(i);
-      storageDump[k] = getLS(k);
-    }
+  function collectSelected(){
+    var storage = {};
+    KEYS.forEach(function(k){ storage[k] = getLS(k); });
 
-    // список установленных плагинов (дублируется в storageDump['plugins'], но вытащим явно)
+    // Необязательная справка о плагинах для удобства (не влияет на импорт)
     var installed = [];
     try {
       if (Lampa.Plugins && typeof Lampa.Plugins.get === 'function') {
@@ -39,11 +45,11 @@
 
     return {
       __meta__: {
-        filename: 'lampa_full_'+nowStamp()+'.json',
+        filename: 'lampa_selected_'+nowStamp()+'.json',
         created_at: new Date().toISOString(),
-        installed_plugins_count: (installed && installed.length) || 0
+        keys: KEYS
       },
-      storage: storageDump,
+      storage: storage,
       extra: { installed_plugins: installed }
     };
   }
@@ -61,7 +67,6 @@
   }
 
   function fallbackModal(jsonText) {
-    // если WebView не даёт скачать — показываем JSON для копирования
     Lampa.Select.show({
       title: 'Экспорт',
       items: [{title:'Показать JSON для копирования'}],
@@ -84,7 +89,7 @@
     });
   }
 
-  // ---------- подтверждение с нормальной подсветкой ----------
+  // ---------- подтверждение ----------
   function confirmYesNo(title, question, onYes){
     Lampa.Select.show({
       title: title,
@@ -94,11 +99,11 @@
     });
   }
 
-  // ---------- экспорт (всё) ----------
+  // ---------- экспорт ----------
   function doExport(){
-    confirmYesNo('Экспорт', 'Сохранить полный бэкап?', function(){
+    confirmYesNo('Экспорт', 'Сохранить бэкап данных?', function(){
       try{
-        var data = collectAll();
+        var data = collectSelected();
         var json = JSON.stringify(data, null, 2);
         var blob = new Blob([json], { type:'application/json;charset=utf-8' });
         var ok = saveBlob(data.__meta__.filename, blob);
@@ -108,7 +113,7 @@
     });
   }
 
-  // ---------- импорт (полная перезапись ключей из storage) ----------
+  // ---------- импорт ----------
   function readFileAsText(file){
     return new Promise(function(res,rej){
       var r = new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('read_error')); r.readAsText(file);
@@ -125,26 +130,19 @@
       input.remove();
       if (!file) return;
 
-      confirmYesNo('Импорт', 'Импортировать и перезаписать настройки?', async function(){
+      confirmYesNo('Импорт', 'Импортировать данные?', async function(){
         try{
           var text = await readFileAsText(file);
           var parsed = JSON.parse(text);
           var st = parsed && parsed.storage ? parsed.storage : parsed;
 
-          // перезаписываем все ключи из бэкапа
-          var count = 0;
-          Object.keys(st||{}).forEach(function(k){
-            var v = st[k];
-            if (typeof v === 'object') localStorage.setItem(k, JSON.stringify(v));
-            else localStorage.setItem(k, String(v));
-            count++;
+          var written = 0;
+          KEYS.forEach(function(k){
+            if (st.hasOwnProperty(k)) { setLS(k, st[k]); written++; }
           });
 
-          // Плагины подтянутся сами после рестарта из ключа 'plugins'.
-          // Если нужно, можно пробежаться по parsed.extra.installed_plugins и переустановить вручную — не требуется.
-
           Lampa.Noty.show('Импорт завершён. Перезапустите Lampa.');
-        }catch(_){ Lampa.Noty.show('Ошибка'); }
+        }catch(_){ Lampa.Noty.show('Ошибка импорта'); }
       });
     }, { once:true });
   }
@@ -153,7 +151,7 @@
   function addSettings(){
     Lampa.SettingsApi.addComponent({
       component: COMPONENT,
-      name: 'Локальный бэкап (полный)',
+      name: 'Локальный бэкап',
       icon: '<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-3 2h2v4h-2V5ZM7 5h5v4H7V5Zm12 14H5V5h1v6h12V5.5L19 19Z"/></svg>'
     });
 
