@@ -113,46 +113,59 @@
     });
   }
 
-  // ---------- импорт ----------
-  function readFileAsText(file){
-    return new Promise(function(res,rej){
-      var r = new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('read_error')); r.readAsText(file);
-    });
-  }
+ // ---------- импорт ----------
+function readFileAsText(file){
+  return new Promise(function(res, rej){
+    var r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(new Error('read_error'));
+    r.readAsText(file);
+  });
+}
 
-  function doImport(){
-    var input = document.createElement('input');
-    input.type = 'file'; input.accept = 'application/json'; input.style.display='none';
-    document.body.appendChild(input); input.click();
+function doImport(){
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.click();
 
-    input.addEventListener('change', function(){
-      var file = input.files && input.files[0];
-      input.remove();
-      if (!file) return;
+  input.addEventListener('change', async function(){
+    var file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
 
-      confirmYesNo('Импорт', 'Импортировать данные?', async function(){
-        try{
-          var text = await readFileAsText(file);
-          var parsed = JSON.parse(text);
-          var st = parsed && parsed.storage ? parsed.storage : parsed;
+    try{
+      var text = await readFileAsText(file);
+      var parsed = JSON.parse(text);
+      var st = parsed && parsed.storage ? parsed.storage : parsed;
 
-          var written = 0;
-          KEYS.forEach(function(k){
-            if (st.hasOwnProperty(k)) { setLS(k, st[k]); written++; }
-          });
-
-          Lampa.Noty.show('Импорт завершён. Перезапустите Lampa.');
-        }catch(_){ Lampa.Noty.show('Ошибка импорта'); }
+      var written = 0;
+      KEYS.forEach(function(k){
+        if (Object.prototype.hasOwnProperty.call(st, k)){
+          setLS(k, st[k]);
+          written++;
+        }
       });
-    }, { once:true });
-  }
+
+      Lampa.Noty.show('Импорт завершён. Перезапустите Lampa.');
+    }catch(e){
+      Lampa.Noty.show('Ошибка импорта: ' + (e && e.message ? e.message : 'неизвестно'));
+    }
+  }, { once: true });
+}
 
   // ---------- UI ----------
   function addSettings(){
     Lampa.SettingsApi.addComponent({
       component: COMPONENT,
       name: 'Локальный бэкап',
-      icon: '<svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4Zm-3 2h2v4h-2V5ZM7 5h5v4H7V5Zm12 14H5V5h1v6h12V5.5L19 19Z"/></svg>'
+      icon: '<svg viewBox="0 0 24 24" style="width:64px!important;height:64px!important;display:block">\
+  <g transform="translate(-83,-520) scale(1.1)">\
+    <path fill="currentColor" d="M90.21875,525 L92.31875,525 L92.31875,523 L90.21875,523 L90.21875,525 Z M87.2,536 L99.8,536 L99.8,534 L87.2,534 L87.2,536 Z M87.2,532 L99.8,532 L99.8,530 L87.2,530 L87.2,532 З M101.9,538 Л85.1,538 Л85.1,526.837 Л87.2,524.837 Л87.2,528 L88.11875,528 L89.3,528 L97.7,528 L99.47135,528 L99.8,528 L99.8,522 L101.9,522 L101.9,538 Z M89.3,522.837 L90.17885,522 L97.7,522 L97.7,526 L89.3,526 L89.3,522.837 Z M103.9664,520 L101.8664,520 L89.3,520 L89.3,520.008 L87.2084,522 L87.2,522 L87.2,522.008 L83.0084,526 L83,526 L83,538 L83,540 L85.1,540 L101.8664,540 L103.9664,540 L104,540 L104,538 L104,522 L104,520 L103.9664,520 Z"/>\
+  </g>\
+</svg>'
     });
 
     Lampa.SettingsApi.addParam({
