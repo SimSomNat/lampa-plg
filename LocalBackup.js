@@ -1,4 +1,3 @@
-// @lampa-name: LocalBackup
 // @lampa-desc: Локальный бэкап: экспорт/импорт закладок, истории и профилей.
 
 (function () {
