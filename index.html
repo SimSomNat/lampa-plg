@@ -27,17 +27,38 @@
 const user='SimSomNat', repo='lampa-plg', branch='main';
 const pagesBase=`https://${user.toLowerCase()}.github.io/${repo}/`;
 
+/* тянем описание из начала .js файла:
+   поддерживаем // @lampa-desc: ... и блок /* @lampa { "desc":"..." } *\/ */
+async function getDesc(relPath){
+  try{
+    const res = await fetch(pagesBase + relPath + '?_=' + Date.now()); // анти-кэш
+    const txt = await res.text();
+
+    const mBlock = txt.match(/\/\*\s*@lampa([\s\S]*?)\*\//);
+    if (mBlock){
+      try{
+        const j = JSON.parse(mBlock[1]);
+        if (j.desc) return String(j.desc).trim();
+      }catch(e){}
+    }
+
+    const mLine = txt.match(/^\s*\/\/\s*@lampa-desc\s*:\s*(.+)$/m);
+    if (mLine) return mLine[1].trim();
+  }catch(e){}
+  return '';
+}
+
 async function walk(path=''){
   const res = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${path}?ref=${branch}`);
   const items = await res.json();
   if (!Array.isArray(items)) throw new Error('GitHub API error/limit');
   for (const it of items){
-    if (it.type === 'file' && it.name.endsWith('.js')) add(it.path);
+    if (it.type === 'file' && it.name.endsWith('.js')) await add(it.path);
     if (it.type === 'dir') await walk(it.path);
   }
 }
 
-function add(relPath){
+async function add(relPath){
   const url = pagesBase + relPath; // ЧИСТЫЙ URL без ?v
   const li = document.createElement('li');
   li.className = 'item';
@@ -51,6 +72,13 @@ function add(relPath){
       <button class="btn copy" data-url="${url}" aria-label="Скопировать ссылку">Скопировать ссылку</button>
     </div>`;
   document.getElementById('list').appendChild(li);
+
+  // заменить текст на @lampa-desc из файла плагина
+  const desc = await getDesc(relPath);
+  if (desc){
+    const small = li.querySelector('.left small');
+    if (small) small.textContent = desc;
+  }
 }
 
 document.getElementById('list').addEventListener('click', async (e)=>{
