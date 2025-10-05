@@ -4,22 +4,17 @@
   var COMPONENT = 'local_backup';
 
   function nowStamp() {
-    var d = new Date();
-    var p = n => String(n).padStart(2,'0');
+    var d = new Date(), p = n => String(n).padStart(2,'0');
     return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+'-'+p(d.getMinutes())+'-'+p(d.getSeconds());
   }
 
   function collectBackup() {
     var dump = {};
     for (var i=0;i<localStorage.length;i++){
-      var k = localStorage.key(i);
-      var v = localStorage.getItem(k);
+      var k = localStorage.key(i), v = localStorage.getItem(k);
       try { dump[k] = JSON.parse(v); } catch(_) { dump[k] = v; }
     }
-    return {
-      __meta__: { filename: 'lampa_backup_'+nowStamp()+'.json', created_at: new Date().toISOString() },
-      storage: dump
-    };
+    return { __meta__: { filename: 'lampa_backup_'+nowStamp()+'.json', created_at: new Date().toISOString() }, storage: dump };
   }
 
   function saveBlob(filename, blob) {
@@ -34,118 +29,85 @@
   }
 
   function fallbackModal(jsonText) {
-    var ctrl = (Lampa.Controller.enabled && Lampa.Controller.enabled().name) || 'settings';
-    var $wrap = $('<div class="about"></div>');
-    var $area = $('<textarea readonly style="width:100%;height:320px;border-radius:.7em;padding:.7em;"></textarea>').val(jsonText);
-    var $btns = $('<div style="margin-top:.8em;display:flex;justify-content:flex-end;gap:.6em"></div>');
-    var $copy = $('<div class="button selector">Скопировать</div>');
-    var $close= $('<div class="button selector">Закрыть</div>');
-    function hi($b){ $b.css({'box-shadow':'0 0 0 2px currentColor inset','transform':'scale(1.02)'}); }
-    function lo($b){ $b.css({'box-shadow':'none','transform':'none'}); }
-    $copy.on('hover:focus',()=>hi($copy)).on('hover:blur',()=>lo($copy));
-    $close.on('hover:focus',()=>hi($close)).on('hover:blur',()=>lo($close));
-
-    $copy.on('hover:enter', function(){
-      try { $area[0].focus(); $area[0].select(); document.execCommand('copy'); Lampa.Noty.show('Скопировано'); }
-      catch(_) { Lampa.Noty.show('Не скопировано'); }
-    });
-    $close.on('hover:enter', function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); });
-
-    $btns.append($copy,$close);
-    $wrap.append($area,$btns);
-
-    Lampa.Modal.open({
+    // Фолбэк на случай, если WebView не даёт скачать файл
+    Lampa.Select.show({
       title: 'Экспорт',
-      html: $wrap,
-      size: 'large',
-      onBack: function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); }
+      items: [{title:'Показать JSON для копирования'}],
+      onSelect: function(){
+        var ctrl = (Lampa.Controller.enabled && Lampa.Controller.enabled().name) || 'settings';
+        var $wrap = $('<div class="about"></div>');
+        var $area = $('<textarea readonly style="width:100%;height:320px;border-radius:.7em;padding:.7em;"></textarea>').val(jsonText);
+        var $btns = $('<div style="margin-top:.8em;display:flex;justify-content:flex-end;gap:.6em"></div>');
+        var $copy = $('<div class="button selector">Скопировать</div>');
+        var $close= $('<div class="button selector">Закрыть</div>');
+        $copy.on('hover:enter', function(){
+          try { $area[0].focus(); $area[0].select(); document.execCommand('copy'); Lampa.Noty.show('Скопировано'); }
+          catch(_) { Lampa.Noty.show('Не скопировано'); }
+        });
+        $close.on('hover:enter', function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); });
+        $btns.append($copy,$close); $wrap.append($area,$btns);
+        Lampa.Modal.open({ title:'Экспорт', html:$wrap, size:'large', onBack:function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); }});
+      },
+      onBack: function(){ Lampa.Controller.toggle('settings'); }
     });
   }
 
-  function confirmDialog(title, msg, options){
-    options = options || {};
-    return new Promise(function(resolve){
-      var ctrl = (Lampa.Controller.enabled && Lampa.Controller.enabled().name) || 'settings';
-      var $wrap = $('<div class="about"></div>');
-      var $msg  = $('<div style="margin-bottom:.8em;line-height:1.5"></div>').text(msg||'Подтвердите действие');
-      var layout = options.corners ? 'justify-content:space-between' : 'justify-content:flex-end';
-      var $btns = $('<div style="display:flex;'+layout+';gap:.6em;width:100%"></div>');
-      var $yes  = $('<div class="button selector">Да</div>');
-      var $no   = $('<div class="button selector">Отмена</div>');
-
-      function hi($b){ $b.css({'box-shadow':'0 0 0 2px currentColor inset','transform':'scale(1.02)'}); }
-      function lo($b){ $b.css({'box-shadow':'none','transform':'none'}); }
-      [$yes,$no].forEach($b=>{
-        $b.on('hover:focus',()=>hi($b)).on('hover:blur',()=>lo($b));
-      });
-
-      $yes.on('hover:enter', function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); resolve(true); });
-      $no.on('hover:enter',  function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); resolve(false); });
-
-      $btns.append($yes,$no);
-      $wrap.append($msg,$btns);
-
-      Lampa.Modal.open({
-        title: title || 'Подтверждение',
-        html:  $wrap,
-        onBack: function(){ Lampa.Modal.close(); Lampa.Controller.toggle(ctrl); resolve(false); }
-      });
+  function confirmYesNo(title, question, cbYes){
+    Lampa.Select.show({
+      title: title,
+      items: [{title:'Да', yes:true}, {title:'Отмена', cancel:true}],
+      onSelect: function(it){
+        if (it.yes) cbYes();
+        else Lampa.Noty.show('Отменено');
+        Lampa.Controller.toggle('settings');
+      },
+      onBack: function(){ Lampa.Controller.toggle('settings'); }
     });
   }
 
-  async function doExport() {
-    var ok = await confirmDialog('Экспорт', 'Сохранить бэкап?', { corners: true });
-    if (!ok) { Lampa.Noty.show('Отменено'); return; }
-
-    try{
-      var data = collectBackup();
-      var json = JSON.stringify(data, null, 2);
-      var blob = new Blob([json], { type:'application/json;charset=utf-8' });
-      var saved = saveBlob(data.__meta__.filename, blob);
-      if (saved) Lampa.Noty.show('Экспорт начат');
-      else { fallbackModal(json); Lampa.Noty.show('Экспорт'); }
-    }catch(_){ Lampa.Noty.show('Ошибка'); }
+  function doExport() {
+    confirmYesNo('Экспорт', 'Сохранить бэкап?', function(){
+      try {
+        var data = collectBackup();
+        var json = JSON.stringify(data, null, 2);
+        var blob = new Blob([json], { type:'application/json;charset=utf-8' });
+        var ok = saveBlob(data.__meta__.filename, blob);
+        if (ok) Lampa.Noty.show('Экспорт начат');
+        else { fallbackModal(json); Lampa.Noty.show('Экспорт'); }
+      } catch(_) { Lampa.Noty.show('Ошибка'); }
+    });
   }
 
   function readFileAsText(file){
     return new Promise(function(res,rej){
-      var r = new FileReader();
-      r.onload = ()=>res(r.result);
-      r.onerror= ()=>rej(new Error('read_error'));
-      r.readAsText(file);
+      var r = new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('read_error')); r.readAsText(file);
     });
   }
 
-  async function doImport() {
-    // выбрать файл
+  function doImport() {
+    // выбор файла
     var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.style.display='none';
-    document.body.appendChild(input);
-    input.click();
+    input.type = 'file'; input.accept = 'application/json'; input.style.display='none';
+    document.body.appendChild(input); input.click();
 
-    input.addEventListener('change', async function(){
-      try{
-        var file = input.files && input.files[0];
-        input.remove();
-        if(!file) return;
+    input.addEventListener('change', function(){
+      var file = input.files && input.files[0];
+      input.remove();
+      if (!file) return;
 
-        var ok = await confirmDialog('Импорт', 'Импортировать бэкап?');
-        if(!ok){ Lampa.Noty.show('Отменено'); return; }
-
-        var text = await readFileAsText(file);
-        var parsed = JSON.parse(text);
-        var data = parsed.storage || parsed;
-
-        Object.keys(data||{}).forEach(function(k){
-          var v = data[k];
-          if (typeof v === 'object') localStorage.setItem(k, JSON.stringify(v));
-          else localStorage.setItem(k, String(v));
-        });
-
-        Lampa.Noty.show('Импорт завершён');
-      }catch(_){ Lampa.Noty.show('Ошибка'); }
+      confirmYesNo('Импорт', 'Импортировать бэкап?', async function(){
+        try{
+          var text = await readFileAsText(file);
+          var parsed = JSON.parse(text);
+          var data = parsed.storage || parsed;
+          Object.keys(data||{}).forEach(function(k){
+            var v = data[k];
+            if (typeof v === 'object') localStorage.setItem(k, JSON.stringify(v));
+            else localStorage.setItem(k, String(v));
+          });
+          Lampa.Noty.show('Импорт завершён');
+        }catch(_){ Lampa.Noty.show('Ошибка'); }
+      });
     }, { once:true });
   }
 
