@@ -21,30 +21,40 @@
 </style>
 
 <h1>Lampa Plugins</h1>
-<ul id="list"><li class="item"><div class="left"><strong>Загружаю список…</strong><small>Ссылки на плагин для Lampa</small></div></li></ul>
+<ul id="list"><li class="item"><div class="left"><strong>Загружаю список…</strong><small>Плагин без описания</small></div></li></ul>
 
 <script>
 const user='SimSomNat', repo='lampa-plg', branch='main';
 const pagesBase=`https://${user.toLowerCase()}.github.io/${repo}/`;
 
-/* тянем описание из начала .js файла:
-   поддерживаем // @lampa-desc: ... и блок /* @lampa { "desc":"..." } *\/ */
+/* Читает описание из начала .js:
+   Поддерживает:
+   1) строку: // @lampa-desc: текст
+   2) блок:   /* @lampa { "desc":"текст" } *\/
+*/
 async function getDesc(relPath){
-  try{
-    const res = await fetch(pagesBase + relPath + '?_=' + Date.now()); // анти-кэш
-    const txt = await res.text();
+  const targets = [
+    `${pagesBase}${relPath}`,                                           // GitHub Pages
+    `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${relPath}` // raw fallback
+  ];
+  for (const url of targets){
+    try{
+      const res = await fetch(url + '?_=' + Date.now()); // анти-кэш
+      if (!res.ok) continue;
+      const txt = await res.text();
 
-    const mBlock = txt.match(/\/\*\s*@lampa([\s\S]*?)\*\//);
-    if (mBlock){
-      try{
-        const j = JSON.parse(mBlock[1]);
-        if (j.desc) return String(j.desc).trim();
-      }catch(e){}
-    }
+      const mb = txt.match(/\/\*\s*@lampa([\s\S]*?)\*\//i);
+      if (mb){
+        try{
+          const j = JSON.parse(mb[1]);
+          if (j && j.desc) return String(j.desc).trim();
+        }catch(e){}
+      }
 
-    const mLine = txt.match(/^\s*\/\/\s*@lampa-desc\s*:\s*(.+)$/m);
-    if (mLine) return mLine[1].trim();
-  }catch(e){}
+      const ml = txt.match(/^[ \t]*\/\/[ \t]*@lampa[-_ ]?desc[ \t]*:[ \t]*(.+)$/im);
+      if (ml) return ml[1].replace(/\r$/, '').trim();
+    }catch(e){}
+  }
   return '';
 }
 
@@ -52,33 +62,38 @@ async function walk(path=''){
   const res = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${path}?ref=${branch}`);
   const items = await res.json();
   if (!Array.isArray(items)) throw new Error('GitHub API error/limit');
+
+  // очищаем заглушку «Загружаю…»
+  const listEl = document.getElementById('list');
+  if (listEl.children.length) listEl.innerHTML = '';
+
+  let count = 0;
   for (const it of items){
-    if (it.type === 'file' && it.name.endsWith('.js')) await add(it.path);
+    if (it.type === 'file' && it.name.endsWith('.js')){ await add(it.path); count++; }
     if (it.type === 'dir') await walk(it.path);
+  }
+  if (!count){
+    // fallback, если нет файлов/лимит GitHub API
+    await add('LocalBackup.js');
   }
 }
 
 async function add(relPath){
-  const url = pagesBase + relPath; // ЧИСТЫЙ URL без ?v
+  const url  = pagesBase + relPath; // чистый URL без ?v
+  const desc = (await getDesc(relPath)) || 'Ссылки на плагин для Lampa';
+
   const li = document.createElement('li');
   li.className = 'item';
   li.innerHTML = `
     <div class="left">
       <strong>${relPath}</strong>
-      <small>Ссылки на плагин для Lampa</small>
+      <small>${desc}</small>
     </div>
     <div class="right">
       <a class="btn" href="${url}" target="_blank" rel="noopener">Открыть плагин</a>
       <button class="btn copy" data-url="${url}" aria-label="Скопировать ссылку">Скопировать ссылку</button>
     </div>`;
   document.getElementById('list').appendChild(li);
-
-  // заменить текст на @lampa-desc из файла плагина
-  const desc = await getDesc(relPath);
-  if (desc){
-    const small = li.querySelector('.left small');
-    if (small) small.textContent = desc;
-  }
 }
 
 document.getElementById('list').addEventListener('click', async (e)=>{
@@ -96,13 +111,6 @@ document.getElementById('list').addEventListener('click', async (e)=>{
   }
 });
 
-walk().then(()=>{
-  const first = document.querySelector('#list > li');
-  if (first && first.querySelector('strong')?.textContent.includes('Загружаю')) first.remove();
-}).catch(()=>{
-  const ul = document.getElementById('list');
-  ul.innerHTML = '';
-  add('LocalBackup.js'); //fallback
-});
+walk();
 </script>
 </html>
