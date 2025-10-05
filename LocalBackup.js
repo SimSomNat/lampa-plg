@@ -143,7 +143,7 @@
     Lampa.SettingsApi.addComponent({
       component: COMPONENT,
       name: 'Локальный бэкап',
-      icon: '<svg viewBox="0 0 24 24"><path d="M12 3v10l3.5-3.5 1.4 1.4L12 17.2 7.1 10.9l1.4-1.4L12 13V3zM5 19h14v2H5z" fill="currentColor"/></svg>'
+      icon: '<img src="https://api.iconify.design/material-symbols/save.svg" style="width:20px;height:20px">'
     });
 
     Lampa.SettingsApi.addParam({
