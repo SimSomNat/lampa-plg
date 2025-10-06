@@ -11703,7 +11703,7 @@
     var proxyInitialized = {};
     var proxyWindow = {};
     var proxyCalls = {};
-    var default_balanser = 'rezka2';
+    var default_balanser = 'vibix';
 
     function component(object) {
       var network = new Lampa.Reguest();
@@ -13196,7 +13196,7 @@
       };
     }
 
-    var mod_version = '';
+    var mod_version = '27.09.2025';
     console.log('App', 'start address:', window.location.href);
     var isMSX = !!(window.TVXHost || window.TVXManager);
     var isTizen = navigator.userAgent.toLowerCase().indexOf('tizen') !== -1;
@@ -13415,18 +13415,18 @@
         zh: '没有结果'
       },
       online_mod_title: {
-        ru: 'HDrezka',
-        uk: 'HDrezka',
-        be: 'HDrezka',
-        en: 'HDrezka',
-        zh: 'HDrezka'
+        ru: 'Онлайн',
+        uk: 'Онлайн',
+        be: 'Анлайн',
+        en: 'Online',
+        zh: '在线的'
       },
       online_mod_title_full: {
-        ru: 'HDrezka',
-        uk: 'HDrezka',
-        be: 'HDrezka',
-        en: 'HDrezka',
-        zh: 'HDrezka'
+        ru: 'Онлайн Мод',
+        uk: 'Онлайн Мод',
+        be: 'Анлайн Мод',
+        en: 'Online Mod',
+        zh: '在线的 Mod'
       },
       online_mod_use_stream_proxy: {
         ru: 'Проксировать видеопоток (Укр)',
@@ -13894,7 +13894,7 @@
     var manifest = {
       type: 'video',
       version: mod_version,
-      name: Lampa.Lang.translate('online_mod_title_full'),
+      name: Lampa.Lang.translate('online_mod_title_full') + ' - ' + mod_version,
       description: Lampa.Lang.translate('online_mod_watch'),
       component: 'online_mod',
       onContextMenu: function onContextMenu(object) {
@@ -13955,7 +13955,8 @@
     var dev_id = Utils.randomHex(16);
     var ping_auth;
     Lampa.Params.select('filmix_token', '', '');
-    /* filmix ui disabled: template removed */Lampa.Storage.listener.follow('change', function (e) {
+    Lampa.Template.add('settings_filmix', "<div>\n    <div class=\"settings-param selector\" data-name=\"filmix_token\" data-type=\"input\" placeholder=\"#{online_mod_filmix_param_placeholder}\">\n        <div class=\"settings-param__name\">#{online_mod_filmix_param_add_title}</div>\n        <div class=\"settings-param__value\"></div>\n        <div class=\"settings-param__descr\">#{online_mod_filmix_param_add_descr}</div>\n    </div>\n    <div class=\"settings-param selector\" data-name=\"filmix_add\" data-static=\"true\">\n        <div class=\"settings-param__name\">#{online_mod_filmix_param_add_device}</div>\n    </div>\n</div>");
+    Lampa.Storage.listener.follow('change', function (e) {
       if (e.name == 'filmix_token') {
         window.mod_filmix = {
           max_qualitie: 480,
@@ -13969,11 +13970,48 @@
     });
 
     function addSettingsFilmix() {
-  try { /* filmix ui disabled */ return; } catch(e){}
-}
+      if (Lampa.Settings.main && Lampa.Settings.main() && !Lampa.Settings.main().render().find('[data-component="filmix"]').length) {
+        var field = $("<div class=\"settings-folder selector\" data-component=\"filmix\">\n            <div class=\"settings-folder__icon\">\n                <svg height=\"57\" viewBox=\"0 0 58 57\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n                <path d=\"M20 20.3735V45H26.8281V34.1262H36.724V26.9806H26.8281V24.3916C26.8281 21.5955 28.9062 19.835 31.1823 19.835H39V13H26.8281C23.6615 13 20 15.4854 20 20.3735Z\" fill=\"white\"/>\n                <rect x=\"2\" y=\"2\" width=\"54\" height=\"53\" rx=\"5\" stroke=\"white\" stroke-width=\"4\"/>\n                </svg>\n            </div>\n            <div class=\"settings-folder__name\">Filmix</div>\n        </div>");
+        Lampa.Settings.main().render().find('[data-component="more"]').after(field);
+        Lampa.Settings.main().update();
+      }
     }
 
-    /* filmix ui disabled: autoload removed *//* filmix ui disabled: open listener removed */ping_auth = setInterval(function () {
+    if (window.appready) addSettingsFilmix();else {
+      Lampa.Listener.follow('app', function (e) {
+        if (e.type == 'ready') addSettingsFilmix();
+      });
+    }
+    Lampa.Settings.listener.follow('open', function (e) {
+      if (e.name == 'filmix') {
+        e.body.find('[data-name="filmix_add"]').unbind('hover:enter').on('hover:enter', function () {
+          var user_code = '';
+          var user_token = '';
+          var filmix_prox = Utils.proxy('filmix');
+          var filmix_prox_enc = '';
+
+          if (filmix_prox) {
+            filmix_prox_enc += 'param/User-Agent=' + encodeURIComponent(Utils.filmixUserAgent()) + '/';
+          }
+
+          var modal = $('<div><div class="broadcast__text">' + Lampa.Lang.translate('online_mod_filmix_modal_text') + '</div><div class="broadcast__device selector" style="text-align: center">' + Lampa.Lang.translate('online_mod_filmix_modal_wait') + '...</div><br><div class="broadcast__scan"><div></div></div></div></div>');
+          Lampa.Modal.open({
+            title: '',
+            html: modal,
+            onBack: function onBack() {
+              Lampa.Modal.close();
+              Lampa.Controller.toggle('settings_component');
+              clearInterval(ping_auth);
+            },
+            onSelect: function onSelect() {
+              Lampa.Utils.copyTextToClipboard(user_code, function () {
+                Lampa.Noty.show(Lampa.Lang.translate('online_mod_filmix_copy_secuses'));
+              }, function () {
+                Lampa.Noty.show(Lampa.Lang.translate('online_mod_filmix_copy_fail'));
+              });
+            }
+          });
+          ping_auth = setInterval(function () {
             checkPro(user_token, function () {
               Lampa.Modal.close();
               clearInterval(ping_auth);
@@ -14459,7 +14497,7 @@
     var template = "<div>";
 
     {
-      
+      template += "\n    <div class=\"settings-param selector\" data-name=\"online_mod_proxy_lumex\" data-type=\"toggle\">\n        <div class=\"settings-param__name\">#{online_mod_proxy_balanser} Lumex</div>\n        <div class=\"settings-param__value\"></div>\n    </div>";
     }
 
     if (Utils.isDebug()) {
@@ -14480,7 +14518,7 @@
     }
 
     template += "\n    <div class=\"settings-param selector\" data-name=\"online_mod_proxy_anilibria\" data-type=\"toggle\">\n        <div class=\"settings-param__name\">#{online_mod_proxy_balanser} AniLibria</div>\n        <div class=\"settings-param__value\"></div>\n    </div>";
-    
+    template += "\n    <div class=\"settings-param selector\" data-name=\"online_mod_proxy_anilibria2\" data-type=\"toggle\">\n        <div class=\"settings-param__name\">#{online_mod_proxy_balanser} AniLibria.top</div>\n        <div class=\"settings-param__value\"></div>\n    </div>";
 
     if (Utils.isDebug()) {
       template += "\n    <div class=\"settings-param selector\" data-name=\"online_mod_proxy_animelib\" data-type=\"toggle\">\n        <div class=\"settings-param__name\">#{online_mod_proxy_balanser} AnimeLib</div>\n        <div class=\"settings-param__value\"></div>\n    </div>";
@@ -14621,3 +14659,40 @@
     });
 
 })();
+;try{
+  // Remove Filmix tile from Settings main once app is ready
+  function __rm_filmix_tile__(){
+    try{
+      var main = Lampa.Settings.main && Lampa.Settings.main();
+      if(!main || !main.render) return;
+      var root = main.render();
+      if(!root || !root.find) return;
+      var fld = root.find('[data-component="filmix"]').closest('.settings-folder');
+      if(fld && fld.length){
+        fld.remove();
+        main.update && main.update();
+      }
+    }catch(e){}
+  }
+  if (window.appready) { __rm_filmix_tile__(); }
+  Lampa.Listener.follow('app', function(e){
+    if(e.type==='ready') __rm_filmix_tile__();
+  });
+
+  // Remove specific proxy toggles inside Online module settings
+  Lampa.Settings.listener.follow('open', function(e){
+    if (e.name === 'online_mod' && e.body){
+      var keys = [
+        'online_mod_proxy_lumex',
+        'online_mod_proxy_anilibria',
+        'online_mod_proxy_anilibria2'
+      ];
+      keys.forEach(function(key){
+        try{
+          var row = e.body.find('[data-name="'+key+'"]').closest('.settings-param');
+          if(row && row.length) row.remove();
+        }catch(err){}
+      });
+    }
+  });
+} catch(e) {}
