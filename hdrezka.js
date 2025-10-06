@@ -11703,7 +11703,7 @@
     var proxyInitialized = {};
     var proxyWindow = {};
     var proxyCalls = {};
-    var default_balanser = 'vibix';
+    var default_balanser = 'rezka2';
 
     function component(object) {
       var network = new Lampa.Reguest();
@@ -12059,6 +12059,7 @@
 
         filter.render().find('.filter--sort span').text(Lampa.Lang.translate('online_mod_balanser'));
         files.appendHead(filter.render());
+        try{filter.render().find('.filter--sort').remove();}catch(e){}
         files.appendFiles(scroll.render());
         this.search();
         return this.render();
@@ -13415,18 +13416,18 @@
         zh: '没有结果'
       },
       online_mod_title: {
-        ru: 'Онлайн',
-        uk: 'Онлайн',
-        be: 'Анлайн',
-        en: 'Online',
-        zh: '在线的'
+        ru: 'HDrezka',
+        uk: 'HDrezka',
+        be: 'HDrezka',
+        en: 'HDrezka',
+        zh: 'HDrezka'
       },
       online_mod_title_full: {
-        ru: 'Онлайн Мод',
-        uk: 'Онлайн Мод',
-        be: 'Анлайн Мод',
-        en: 'Online Mod',
-        zh: '在线的 Mod'
+        ru: 'HDrezka',
+        uk: 'HDrezka',
+        be: 'HDrezka',
+        en: 'HDrezka',
+        zh: 'HDrezka'
       },
       online_mod_use_stream_proxy: {
         ru: 'Проксировать видеопоток (Укр)',
@@ -13893,8 +13894,8 @@
     resetTemplates();
     var manifest = {
       type: 'video',
-      version: mod_version,
-      name: Lampa.Lang.translate('online_mod_title_full') + ' - ' + mod_version,
+      version: '',
+      name: 'HDrezka',
       description: Lampa.Lang.translate('online_mod_watch'),
       component: 'online_mod',
       onContextMenu: function onContextMenu(object) {
@@ -14659,40 +14660,3 @@
     });
 
 })();
-;try{
-  // Remove Filmix tile from Settings main once app is ready
-  function __rm_filmix_tile__(){
-    try{
-      var main = Lampa.Settings.main && Lampa.Settings.main();
-      if(!main || !main.render) return;
-      var root = main.render();
-      if(!root || !root.find) return;
-      var fld = root.find('[data-component="filmix"]').closest('.settings-folder');
-      if(fld && fld.length){
-        fld.remove();
-        main.update && main.update();
-      }
-    }catch(e){}
-  }
-  if (window.appready) { __rm_filmix_tile__(); }
-  Lampa.Listener.follow('app', function(e){
-    if(e.type==='ready') __rm_filmix_tile__();
-  });
-
-  // Remove specific proxy toggles inside Online module settings
-  Lampa.Settings.listener.follow('open', function(e){
-    if (e.name === 'online_mod' && e.body){
-      var keys = [
-        'online_mod_proxy_lumex',
-        'online_mod_proxy_anilibria',
-        'online_mod_proxy_anilibria2'
-      ];
-      keys.forEach(function(key){
-        try{
-          var row = e.body.find('[data-name="'+key+'"]').closest('.settings-param');
-          if(row && row.length) row.remove();
-        }catch(err){}
-      });
-    }
-  });
-} catch(e) {}
