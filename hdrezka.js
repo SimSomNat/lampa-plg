@@ -86,22 +86,10 @@
     function fancdnHost() {
       return fanserialsHost();
     }
-
-    function filmixHost$1() {
-      return 'https://filmix.my';
-    }
-
-    function filmixAppHost() {
-      return 'http://filmixapp.vip';
-    }
-
-    function filmixToken(dev_id, token) {
-      return '?user_dev_id=' + dev_id + '&user_dev_name=Xiaomi&user_dev_token=' + token + '&user_dev_vendor=Xiaomi&user_dev_os=14&user_dev_apk=2.2.0&app_lang=ru-rRU';
-    }
-
-    function filmixUserAgent() {
-      return 'okhttp/3.10.0';
-    }
+    // Filmix related helper functions have been removed.  These helpers (host,
+    // appHost, token builder and user agent) were only used by the Filmix
+    // provider and associated settings.  Removing them prevents accidental
+    // use after Filmix support has been disabled.
 
     function baseUserAgent() {
       return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36';
@@ -165,8 +153,7 @@
       var user_proxy1 = (proxy_other_url || proxy1) + param_ip;
       var user_proxy2 = (proxy_other_url || proxy2) + param_ip;
       var user_proxy3 = (proxy_other_url || proxy3) + param_ip;
-      if (name === 'filmix_site') return proxy_secret_ip || user_proxy1;
-      if (name === 'filmix_abuse') return window.location.protocol === 'https:' ? 'https://cors.apn.monster/' : 'http://cors.cfhttp.top/';
+      // Removed filmix_site and filmix_abuse proxy endpoints
       if (name === 'zetflix') return proxy_apn;
       if (name === 'allohacdn') return proxy_other ? proxy_secret : proxy_apn;
       if (name === 'cookie') return user_proxy1;
@@ -182,7 +169,7 @@
         if (name === 'kinobase') return proxy_apn;
         if (name === 'collaps') return proxy_other ? proxy_secret : proxy_apn;
         if (name === 'cdnmovies') return proxy_other ? proxy_secret : proxy_apn;
-        if (name === 'filmix') return proxy_secret_ip || user_proxy1;
+        // Filmix proxy removed
         if (name === 'videodb') return user_proxy2;
         if (name === 'fancdn') return user_proxy3;
         if (name === 'fancdn2') return proxy_secret || user_proxy3;
@@ -379,10 +366,7 @@
       getCurrentFanserialsHost: getCurrentFanserialsHost,
       fanserialsHost: fanserialsHost,
       fancdnHost: fancdnHost,
-      filmixHost: filmixHost$1,
-      filmixAppHost: filmixAppHost,
-      filmixToken: filmixToken,
-      filmixUserAgent: filmixUserAgent,
+      // Filmix utilities removed
       baseUserAgent: baseUserAgent,
       vcdnToken: vcdnToken,
       setMyIp: setMyIp,
@@ -13196,7 +13180,10 @@
     var isTizen = navigator.userAgent.toLowerCase().indexOf('tizen') !== -1;
     var isIFrame = window.parent !== window;
     var isLocal = !startsWith(window.location.protocol, 'http');
-    var androidHeaders = Lampa.Platform.is('android') && Utils.checkAndroidVersion(339);console.log('App', 'is MSX:', isMSX);
+    var androidHeaders = Lampa.Platform.is('android') && Utils.checkAndroidVersion(339);
+// Filmix host resolved to a static string since Filmix support has been removed
+var filmixHost = 'https://filmix.my';
+    console.log('App', 'is MSX:', isMSX);
     console.log('App', 'is Tizen:', isTizen);
     console.log('App', 'is iframe:', isIFrame);
     console.log('App', 'is local:', isLocal);
@@ -13938,6 +13925,7 @@
         };
       }
     } ///////FILMIX/////////
+/* Filmix settings removed
 
 
     var filmix_headers = Lampa.Platform.is('android') ? {
@@ -13962,8 +13950,12 @@
     });
 
     function addSettingsFilmix() {
-  try { return; } catch(e){}
-}
+      if (Lampa.Settings.main && Lampa.Settings.main() && !Lampa.Settings.main().render().find('[data-component="filmix"]').length) {
+        var field = $("<div class=\"settings-folder selector\" data-component=\"filmix\">\n            <div class=\"settings-folder__icon\">\n                <svg height=\"57\" viewBox=\"0 0 58 57\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n                <path d=\"M20 20.3735V45H26.8281V34.1262H36.724V26.9806H26.8281V24.3916C26.8281 21.5955 28.9062 19.835 31.1823 19.835H39V13H26.8281C23.6615 13 20 15.4854 20 20.3735Z\" fill=\"white\"/>\n                <rect x=\"2\" y=\"2\" width=\"54\" height=\"53\" rx=\"5\" stroke=\"white\" stroke-width=\"4\"/>\n                </svg>\n            </div>\n            <div class=\"settings-folder__name\">Filmix</div>\n        </div>");
+        Lampa.Settings.main().render().find('[data-component="more"]').after(field);
+        Lampa.Settings.main().update();
+      }
+    }
 
     if (window.appready) addSettingsFilmix();else {
       Lampa.Listener.follow('app', function (e) {
@@ -14070,6 +14062,7 @@
     } ///////Rezka2/////////
 
 
+*/
     function rezka2Login(success, error) {
       var host = Utils.rezka2Mirror();
       var url = host + '/ajax/login/';
