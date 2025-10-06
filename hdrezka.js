@@ -11802,16 +11802,184 @@
       var isAndroid = Lampa.Platform.is('android');
       isAndroid && Utils.checkAndroidVersion(339);
       var collapsBlocked = (!startsWith(window.location.protocol, 'http') || window.location.hostname.indexOf('lampa') !== -1) && disable_dbg;
-      var all_sources = [
-{
+      var all_sources = [{
+        name: 'lumex',
+        title: 'Lumex',
+        source: new lumex(this, object),
+        search: false,
+        kp: false,
+        imdb: true,
+        disabled: disable_dbg
+      }, {
+        name: 'lumex2',
+        title: 'Lumex (Ads)',
+        source: new lumex2(this, object),
+        search: false,
+        kp: false,
+        imdb: true,
+        disabled: true
+      }, {
         name: 'rezka2',
         title: 'HDrezka',
         source: new rezka2(this, object),
         search: true,
         kp: false,
         imdb: false
-      }
-];
+      }, {
+        name: 'kinobase',
+        title: 'Kinobase',
+        source: new kinobase(this, object),
+        search: true,
+        kp: false,
+        imdb: false,
+        disabled: true
+      }, {
+        name: 'collaps',
+        title: 'Collaps',
+        source: new collaps(this, object, false),
+        search: false,
+        kp: true,
+        imdb: true,
+        disabled: collapsBlocked
+      }, {
+        name: 'collaps-dash',
+        title: 'Collaps (DASH)',
+        source: new collaps(this, object, true),
+        search: false,
+        kp: true,
+        imdb: true,
+        disabled: collapsBlocked
+      }, {
+        name: 'cdnmovies',
+        title: 'CDNMovies',
+        source: new cdnmovies(this, object),
+        search: false,
+        kp: true,
+        imdb: true,
+        disabled: disable_dbg
+      }, {
+        name: 'filmix',
+        title: 'Filmix',
+        source: new filmix(this, object),
+        search: true,
+        kp: false,
+        imdb: false
+      }, {
+        name: 'zetflix',
+        title: 'Zetflix',
+        source: new zetflix(this, object),
+        search: false,
+        kp: true,
+        imdb: false,
+        disabled: disable_dbg
+      }, {
+        name: 'fancdn',
+        title: 'FanCDN',
+        source: new fancdn(this, object),
+        search: true,
+        kp: false,
+        imdb: false,
+        disabled: disable_dbg
+      }, {
+        name: 'fancdn2',
+        title: 'FanCDN (ID)',
+        source: new fancdn2(this, object),
+        search: false,
+        kp: true,
+        imdb: true,
+        disabled: disable_dbg
+      }, {
+        name: 'fanserials',
+        title: 'FanSerials',
+        source: new fanserials(this, object),
+        search: false,
+        kp: true,
+        imdb: false,
+        disabled: disable_dbg && !isAndroid
+      }, {
+        name: 'videoseed',
+        title: 'VideoSeed',
+        source: new videoseed(this, object),
+        search: false,
+        kp: true,
+        imdb: true,
+        disabled: disable_dbg
+      }, {
+        name: 'vibix',
+        title: 'Vibix',
+        source: new vibix(this, object),
+        search: false,
+        kp: true,
+        imdb: true
+      }, {
+        name: 'redheadsound',
+        title: 'RedHeadSound',
+        source: new redheadsound(this, object, false),
+        search: true,
+        kp: false,
+        imdb: true
+      }, {
+        name: 'redheadsound-dash',
+        title: 'RedHeadSound (DASH)',
+        source: new redheadsound(this, object, true),
+        search: true,
+        kp: false,
+        imdb: true,
+        disabled: true
+      }, {
+        name: 'cdnvideohub',
+        title: 'CDNVideoHub',
+        source: new cdnvideohub(this, object),
+        search: false,
+        kp: true,
+        imdb: false
+      }, {
+        name: 'anilibria',
+        title: 'AniLibria',
+        source: new anilibria(this, object),
+        search: true,
+        kp: false,
+        imdb: false,
+        disabled: true
+      }, {
+        name: 'anilibria2',
+        title: 'AniLibria.top',
+        source: new anilibria2(this, object),
+        search: true,
+        kp: false,
+        imdb: false
+      }, {
+        name: 'animelib',
+        title: 'AnimeLib',
+        source: new animelib(this, object),
+        search: true,
+        kp: false,
+        imdb: false,
+        disabled: true
+      }, {
+        name: 'kodik',
+        title: 'Kodik',
+        source: new kodik(this, object),
+        search: true,
+        kp: true,
+        imdb: true
+      }, {
+        name: 'alloha',
+        title: 'Alloha',
+        source: new alloha(this, object),
+        search: false,
+        kp: true,
+        imdb: true,
+        disabled: true
+      }, {
+        name: 'kinopub',
+        title: 'KinoPub',
+        source: new kinopub(this, object),
+        search: true,
+        kp: false,
+        imdb: true,
+        disabled: true
+      }];
       var obj_filter_sources = all_sources.filter(function (s) {
         return !s.disabled;
       });
@@ -11891,6 +12059,7 @@
 
         filter.render().find('.filter--sort span').text(Lampa.Lang.translate('online_mod_balanser'));
         files.appendHead(filter.render());
+        try{filter.render().find('.filter--sort').remove();}catch(e){}
         files.appendFiles(scroll.render());
         this.search();
         return this.render();
@@ -13247,18 +13416,18 @@
         zh: '没有结果'
       },
       online_mod_title: {
-        ru: 'Онлайн',
-        uk: 'Онлайн',
-        be: 'Анлайн',
-        en: 'Online',
-        zh: '在线的'
+        ru: 'HDrezka',
+        uk: 'HDrezka',
+        be: 'HDrezka',
+        en: 'HDrezka',
+        zh: 'HDrezka'
       },
       online_mod_title_full: {
-        ru: 'Онлайн Мод',
-        uk: 'Онлайн Мод',
-        be: 'Анлайн Мод',
-        en: 'Online Mod',
-        zh: '在线的 Mod'
+        ru: 'HDrezka',
+        uk: 'HDrezka',
+        be: 'HDrezka',
+        en: 'HDrezka',
+        zh: 'HDrezka'
       },
       online_mod_use_stream_proxy: {
         ru: 'Проксировать видеопоток (Укр)',
@@ -13725,8 +13894,8 @@
     resetTemplates();
     var manifest = {
       type: 'video',
-      version: mod_version,
-      name: Lampa.Lang.translate('online_mod_title_full') + ' - ' + mod_version,
+      version: '',
+      name: 'HDrezka',
       description: Lampa.Lang.translate('online_mod_watch'),
       component: 'online_mod',
       onContextMenu: function onContextMenu(object) {
