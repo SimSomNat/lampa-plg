@@ -1,25 +1,64 @@
-// @lampa-desc: Плагин преобразует привычный вид карточек, предлагая обновленный интерфейс
+// @lampa-desc: Cardify — новый вид стартовой карточки (TV: большая обложка, без постера)
 (function () {
   'use strict';
 
+  /* ========= 0) POLYFILL Template.render (и кеш Template.add) ========= */
+  function installTemplatePolyfill(){
+    if (!Lampa || !Lampa.Template) return;
+    var T = Lampa.Template;
+    var _add = T.add && T.add.bind(T);
+    var STORE = Object.create(null);
+
+    // перехватываем add, чтобы иметь копию шаблонов
+    if (_add){
+      T.add = function(name, html){
+        STORE[name] = html;
+        return _add(name, html);
+      };
+    }
+
+    if (typeof T.render !== 'function'){
+      // простой рендер {var} по данным
+      T.render = function(name, data, asString){
+        var tpl = STORE[name];
+        if (!tpl && typeof T.get === 'function'){
+          try { tpl = T.get(name); } catch(e){}
+        }
+        if (!tpl) return asString ? '' : $('<div/>');
+
+        tpl = tpl.replace(/\{(\w+)\}/g, function(_, key){
+          return (data && key in data) ? String(data[key]) : '{'+key+'}';
+        });
+
+        return asString ? tpl : $(tpl);
+      };
+    }
+  }
+
+  /* ========= 1) INIT ========= */
   try { Lampa.Platform.tv(); } catch(e){}
 
   function init() {
+    // не блокируем по origin — в разных билдах отличается
     try {
-      if (Lampa.Manifest.origin !== 'bylampa') {
-        Lampa.Noty.show('Ошибка доступа');
-        return;
+      if (Lampa.Manifest && Lampa.Manifest.origin && Lampa.Manifest.origin !== 'bylampa'){
+        console.log('[Cardify] origin:', Lampa.Manifest.origin);
       }
-    } catch (e) {}
+    } catch(e){}
 
-    // Только ТВ
+    // нам нужен именно ТВ-режим (на мобиле постер остаётся нативным)
     if (!Lampa.Platform.get('tv')) {
-      console.log('Cardify', 'no tv');
+      console.log('Cardify: skip (not TV)');
       return;
     }
 
-    // == 1) ВСТАВЛЯЕМ CSS НАПРЯМУЮ (без Template.render) ==
-    var CSS = `
+    installTemplatePolyfill();
+
+    /* ========= 2) CSS через Template + render ========= */
+    Lampa.Template.add('cardify_css', `
+<style>
+/* раскладка */
+.full-start-new.cardify{position:relative}
 .cardify .full-start-new__body{height:80vh}
 .cardify .full-start-new__right{display:flex;align-items:flex-end}
 .cardify__left{flex-grow:1}
@@ -33,24 +72,20 @@
 .cardify .full-start-new__rate-line{margin:0;margin-left:3.5em}
 .cardify .full-start-new__rate-line>*:last-child{margin-right:0 !important}
 
-/* Фон-бекдроп отдельным слоем */
-.full-start-new.cardify{position:relative}
+/* наш слой-обложка */
 .full-start-new.cardify .cardify__background{
-  position:absolute; top:0; left:0; right:0;
-  height:44vh;
-  z-index:0;
-  pointer-events:none;
-  background-position:center center;
-  background-repeat:no-repeat;
-  background-size:cover;
+  position:absolute; top:0; left:0; right:0; height:44vh;
+  z-index:0; pointer-events:none;
+  background-position:center center; background-repeat:no-repeat; background-size:cover;
 }
+/* делаем мягче, чтобы не получилось “чёрной стенки” */
 .full-start-new.cardify .cardify__background::after{
   content:""; position:absolute; inset:0; pointer-events:none;
   background:
-    linear-gradient(to bottom, rgba(0,0,0,.80), rgba(0,0,0,0) 70%),
-    linear-gradient(to top,    rgba(0,0,0,.80), rgba(0,0,0,0) 70%),
-    linear-gradient(to left,   rgba(0,0,0,.80), rgba(0,0,0,0) 70%),
-    linear-gradient(to right,  rgba(0,0,0,.80), rgba(0,0,0,0) 70%);
+    linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0) 72%),
+    linear-gradient(to top,    rgba(0,0,0,.55), rgba(0,0,0,0) 72%),
+    linear-gradient(to left,   rgba(0,0,0,.55), rgba(0,0,0,0) 72%),
+    linear-gradient(to right,  rgba(0,0,0,.35), rgba(0,0,0,0) 70%);
 }
 /* контент поверх */
 .full-start-new.cardify .full-start-new__body,
@@ -60,17 +95,18 @@
 .full-start-new.cardify .full-start-new__reactions,
 .full-start-new.cardify .full-start-new__rate-line{ position:relative; z-index:1; }
 
-/* подстраховка: штатные фоны прозрачные */
+/* прозрачные штатные фоны */
 .full-start__background,
 .full-start-new__background,
 .full .background { background-color:transparent !important; }
-`;
-    var styleTag = document.createElement('style');
-    styleTag.type = 'text/css';
-    styleTag.appendChild(document.createTextNode(CSS));
-    document.body.appendChild(styleTag);
 
-    // == 2) ПЕРЕОПРЕДЕЛЯЕМ ШАБЛОН, НО НЕ РЕНДЕРИМ ЕГО ВРУЧНУЮ ==
+/* на ТВ прячем левый постер */
+.full-start-new.cardify .full-start-new__left{ display:none !important; }
+</style>
+`);
+    $('body').append(Lampa.Template.render('cardify_css', {}, true));
+
+    /* ========= 3) Переопределяем шаблон стартового блока ========= */
     Lampa.Template.add('full_start_new', `
 <div class="full-start-new cardify">
   <div class="cardify__background"></div>
@@ -84,36 +120,30 @@
       <div class="cardify__left">
         <div class="full-start-new__head"></div>
         <div class="full-start-new__title">{title}</div>
-        <div class="cardify__details">
-          <div class="full-start-new__details"></div>
-        </div>
+        <div class="cardify__details"><div class="full-start-new__details"></div></div>
         <div class="full-start__buttons full-start-new__buttons">
           <div class="full-start__button selector button--play">
             <svg width="28" height="29" viewBox="0 0 28 29" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="14" cy="14.5" r="13" stroke="currentColor" stroke-width="2.7"/>
               <path d="M18.0739 13.634C18.7406 14.0189 18.7406 14.9811 18.0739 15.366L11.751 19.0166C11.0843 19.4015 10.251 18.9204 10.251 18.1506L10.251 10.8494C10.251 10.0796 11.0843 9.5985 11.751 9.9834L18.0739 13.634Z" fill="currentColor"/>
-            </svg>
-            <span>#{title_watch}</span>
+            </svg><span>#{title_watch}</span>
           </div>
           <div class="full-start__button selector button--book">
             <svg width="21" height="32" viewBox="0 0 21 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M2 1.5H19C19.2761 1.5 19.5 1.72386 19.5 2V27.9618C19.5 28.3756 19.0261 28.6103 18.697 28.3595L12.6212 23.7303C11.3682 22.7757 9.63183 22.7757 8.37885 23.7303L2.30302 28.3595C1.9739 28.6103 1.5 28.3756 1.5 27.9618V2C1.5 1.72386 1.72386 1.5 2 1.5Z" stroke="currentColor" stroke-width="2.5"/>
-            </svg>
-            <span>#{settings_input_links}</span>
+            </svg><span>#{settings_input_links}</span>
           </div>
           <div class="full-start__button selector button--reaction">
             <svg width="38" height="34" viewBox="0 0 38 34" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M37.208 10.9742C37.1364 10.8013 37.0314 10.6441 36.899 10.5117C36.7666 10.3794 36.6095 10.2744 36.4365 10.2028L12.0658 0.108375C11.7166 -0.0361828 11.3242 -0.0361227 10.9749 0.108542C10.6257 0.253206 10.3482 0.530634 10.2034 0.879836L0.108666 25.2507C0.0369593 25.4236 3.37953e-05 25.609 2.3187e-08 25.7962C-3.37489e-05 25.9834 0.0368249 26.1688 0.108469 26.3418C0.180114 26.5147 0.28514 26.6719 0.417545 26.8042C0.54995 26.9366 0.707139 27.0416 0.880127 27.1131L17.2452 33.8917C17.5945 34.0361 17.9869 34.0361 18.3362 33.8917L29.6574 29.2017C29.8304 29.1301 29.9875 29.0251 30.1199 28.8928C30.2523 28.7604 30.3573 28.6032 30.4289 28.4303L37.2078 12.065C37.2795 11.8921 37.3164 11.7068 37.3164 11.5196C37.3165 11.3325 37.2796 11.1471 37.208 10.9742ZM20.425 29.9407L21.8784 26.4316L25.3873 27.885L20.425 29.9407ZM28.3407 26.0222L21.6524 23.252C21.3031 23.1075 20.9107 23.1076 20.5615 23.2523C20.2123 23.3969 19.9348 23.6743 19.79 24.0235L17.0194 30.7123L3.28783 25.0247L12.2918 3.28773L34.0286 12.2912L28.3407 26.0222Z" fill="currentColor"/>
               <path d="M25.3493 16.976L24.258 14.3423L16.959 17.3666L15.7196 14.375L13.0859 15.4659L15.4161 21.0916L25.3493 16.976Z" fill="currentColor"/>
-            </svg>
-            <span>#{title_reactions}</span>
+            </svg><span>#{title_reactions}</span>
           </div>
           <div class="full-start__button selector button--subscribe hide">
             <svg width="25" height="30" viewBox="0 0 25 30" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M6.01892 24C6.27423 27.3562 9.07836 30 12.5 30C15.9216 30 18.7257 27.3562 18.981 24H15.9645C15.7219 25.6961 14.2632 27 12.5 27C10.7367 27 9.27804 25.6961 9.03542 24H6.01892Z" fill="currentColor"/>
               <path d="M3.81972 14.5957V10.2679C3.81972 5.41336 7.7181 1.5 12.5 1.5C17.2819 1.5 21.1803 5.41336 21.1803 10.2679V14.5957C21.1803 15.8462 21.5399 17.0709 22.2168 18.1213L23.0727 19.4494C24.2077 21.2106 22.9392 23.5 20.9098 23.5H4.09021C2.06084 23.5 0.792282 21.2106 1.9273 19.4494L2.78317 18.1213C3.46012 17.0709 3.81972 15.8462 3.81972 14.5957Z" stroke="currentColor" stroke-width="2.5"/>
-            </svg>
-            <span>#{title_subscribe}</span>
+            </svg><span>#{title_subscribe}</span>
           </div>
         </div>
       </div>
@@ -140,53 +170,77 @@
     </div>
   </div>
 </div>
-    `);
+`);
 
-    // == 3) Бекдроп обновляем при открытии экрана ==
-    function updateBackdrop(screen) {
-      var $root = screen && typeof screen.search === 'function' ? screen.search() : null;
-      var $bg = $root ? $root.find('.full-start-new__background, .full-start__background, .full .background') : $();
+    /* ========= 4) Достаём URL обложки надёжнее + ретраи ========= */
+    function parseCssUrl(str){
+      if (!str || str === 'none') return '';
+      var m = str.match(/url\((["']?)(.*?)\1\)/i);
+      return m && m[2] ? m[2] : '';
+    }
 
-      var url = '';
-      if ($bg && $bg.length) {
-        var node = $bg.get(0);
-        try {
-          var cs = getComputedStyle(node);
-          if (cs && cs.backgroundImage && cs.backgroundImage !== 'none') {
-            var m = cs.backgroundImage.match(/url\((["']?)(.*?)\1\)/);
-            if (m && m[2]) url = m[2];
-          }
-        } catch (e) {}
-        if (!url) {
-          var img = $bg.find('img[src], img[srcset]').get(0);
-          if (img) {
-            url = img.currentSrc || img.src || '';
-            if (!url && img.srcset) {
-              var parts = img.srcset.split(',').map(function (s) { return s.trim(); });
-              var last = parts[parts.length - 1];
-              var u = last && last.split(' ')[0];
-              if (u) url = u;
-            }
-          }
+    function pickBackdropUrl($root){
+      if (!$root || !$root.length) return '';
+
+      // 1) любые фоновые контейнеры
+      var $bg = $root.find('.full-start-new__background, .full-start__background, .full .background, .background, [class*="background"]');
+      for (var i=0;i<$bg.length;i++){
+        var cs = getComputedStyle($bg[i]);
+        var u = parseCssUrl(cs && cs.backgroundImage);
+        if (u) return u;
+      }
+
+      // 2) изображения бекдропа
+      var $imgs = $root.find('img[data-type="backdrop"], img.backdrop, img[srcset], img[src]');
+      for (i=0;i<$imgs.length;i++){
+        var img = $imgs[i];
+        if (img.currentSrc) return img.currentSrc;
+        if (img.src)       return img.src;
+        if (img.srcset){
+          var parts = String(img.srcset).split(',').map(function(s){return s.trim();});
+          var last  = parts[parts.length-1];
+          var url   = last && last.split(' ')[0];
+          if (url) return url;
         }
       }
 
+      // 3) data-атрибуты
+      var cand = $root.find('[data-background],[data-backdrop]').get(0);
+      if (cand){
+        return cand.getAttribute('data-background') || cand.getAttribute('data-backdrop') || '';
+      }
+
+      return '';
+    }
+
+    function updateBackdropOnce(screen){
+      var $root = screen && typeof screen.search === 'function' ? screen.search() : null;
+      var url = pickBackdropUrl($root || $('.full'));
+
       var $card = $('.full-start-new.cardify');
       var $layer = $card.find('.cardify__background');
-      if (!$layer.length) {
+      if (!$layer.length){
         $layer = $('<div class="cardify__background"></div>');
         $card.prepend($layer);
       }
+      if (url) $layer.css('background-image','url("'+url+'")');
+      else     $layer.css('background-image','none');
+    }
 
-      if (url) $layer.css('background-image', 'url("' + url + '")');
-      else     $layer.css('background-image', 'none');
-
-      // На ТВ слева постер прячем
-      $card.find('.full-start-new__left').addClass('hide').css('display','none');
+    function updateBackdropWithRetries(screen){
+      // несколько попыток: при асинхронной подстановке фона
+      var tries = 6;
+      (function tick(){
+        updateBackdropOnce(screen);
+        tries--;
+        if (tries > 0){
+          setTimeout(tick, tries >= 3 ? 180 : 350);
+        }
+      })();
     }
 
     Lampa.Listener.follow('full', function (evt) {
-      if (evt && evt.type === 'complite') updateBackdrop(evt.object);
+      if (evt && evt.type === 'complite') updateBackdropWithRetries(evt.object);
     });
   }
 
