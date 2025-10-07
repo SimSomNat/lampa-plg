@@ -1,15 +1,10 @@
 // @lampa-desc: Плагин преобразует привычный вид карточек, предлагая обновленный интерфейс
-
 (function () {
   'use strict';
 
-  // Запускаем TV режим
   try { Lampa.Platform.tv(); } catch(e){}
 
   function init() {
-    // анти-консоль из твоего кода оставлять смысла нет — мешает дебагу
-
-    // Блокируем неофициальные сборки так же, как у тебя
     try {
       if (Lampa.Manifest.origin !== 'bylampa') {
         Lampa.Noty.show('Ошибка доступа');
@@ -17,16 +12,14 @@
       }
     } catch (e) {}
 
-    // Только TV
+    // Только ТВ
     if (!Lampa.Platform.get('tv')) {
       console.log('Cardify', 'no tv');
       return;
     }
 
-    // 1) CSS — твой стиль + фиксы для бекдропа
-    Lampa.Template.add('cardify_css', `
-<style>
-/* твои стили — безопасные правки */
+    // == 1) ВСТАВЛЯЕМ CSS НАПРЯМУЮ (без Template.render) ==
+    var CSS = `
 .cardify .full-start-new__body{height:80vh}
 .cardify .full-start-new__right{display:flex;align-items:flex-end}
 .cardify__left{flex-grow:1}
@@ -40,10 +33,7 @@
 .cardify .full-start-new__rate-line{margin:0;margin-left:3.5em}
 .cardify .full-start-new__rate-line>*:last-child{margin-right:0 !important}
 
-/* === Фикс бекдропа ===
-   1) НЕ используем background: ... (не трём картинку)
-   2) создаём отдельный слой .cardify__background внутри каркаса и кладём туда image+градиент
-*/
+/* Фон-бекдроп отдельным слоем */
 .full-start-new.cardify{position:relative}
 .full-start-new.cardify .cardify__background{
   position:absolute; top:0; left:0; right:0;
@@ -54,7 +44,6 @@
   background-repeat:no-repeat;
   background-size:cover;
 }
-/* мягкие затемнения поверх картинки — уже ВНУТРИ бэкграунда */
 .full-start-new.cardify .cardify__background::after{
   content:""; position:absolute; inset:0; pointer-events:none;
   background:
@@ -71,14 +60,17 @@
 .full-start-new.cardify .full-start-new__reactions,
 .full-start-new.cardify .full-start-new__rate-line{ position:relative; z-index:1; }
 
-/* подстраховка: штатные фоны прозрачные, но их image не трогаем */
+/* подстраховка: штатные фоны прозрачные */
 .full-start__background,
 .full-start-new__background,
 .full .background { background-color:transparent !important; }
-</style>
-    `);
+`;
+    var styleTag = document.createElement('style');
+    styleTag.type = 'text/css';
+    styleTag.appendChild(document.createTextNode(CSS));
+    document.body.appendChild(styleTag);
 
-    // 2) html-каркас как у тебя (без изменений, постер слева скрыт .hide)
+    // == 2) ПЕРЕОПРЕДЕЛЯЕМ ШАБЛОН, НО НЕ РЕНДЕРИМ ЕГО ВРУЧНУЮ ==
     Lampa.Template.add('full_start_new', `
 <div class="full-start-new cardify">
   <div class="cardify__background"></div>
@@ -95,7 +87,7 @@
         <div class="cardify__details">
           <div class="full-start-new__details"></div>
         </div>
-        <div class="full-start-new__buttons">
+        <div class="full-start__buttons full-start-new__buttons">
           <div class="full-start__button selector button--play">
             <svg width="28" height="29" viewBox="0 0 28 29" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="14" cy="14.5" r="13" stroke="currentColor" stroke-width="2.7"/>
@@ -139,7 +131,7 @@
   </div>
   <div class="hide buttons--container">
     <div class="full-start__button view--torrent hide">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="50px" height="50px"><path d="M25,2C12.317,2,2,12.317,2,25s10.317,23,23,23s23-10.317,23-23S37.683,2,25,2z M40.5,30.963c-3.1,0-4.9-2.4-4.9-2.4 S34.1,35,27,35c-1.4,0-3.6-0.837-3.6-0.837l4.17,9.643C26.727,43.92,25.874,44,25,44c-2.157,0-4.222-0.377-6.155-1.039L9.237,16.851 c0,0-0.7-1.2,0.4-1.5c1.1-0.3,5.4-1.2,5.4-1.2s1.475-0.494,1.8,0.5c0.5,1.3,4.063,11.112,4.063,11.112S22.6,29,27.4,29 c4.7,0,5.9-3.437,5.7-3.937c-1.2-3-4.993-11.862-4.993-11.862s-0.6-1.1,0.8-1.4c1.4-0.3,3.8-0.7,3.8-0.7s1.105-0.163,1.6,0.8 c0.738,1.437,5.193,11.262,5.193,11.262s1.1,2.9,3.3,2.9c0.464,0,0.834-0.046,1.152-0.104c-0.082,1.635-0.348,3.221-0.817,4.722 C42.541,30.867,41.756,30.963,40.5,30.963z" fill="currentColor"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="50px" height="50"><path d="M25,2C12.317,2,2,12.317,2,25s10.317,23,23,23s23-10.317,23-23S37.683,2,25,2z M40.5,30.963c-3.1,0-4.9-2.4-4.9-2.4 S34.1,35,27,35c-1.4,0-3.6-0.837-3.6-0.837l4.17,9.643C26.727,43.92,25.874,44,25,44c-2.157,0-4.222-0.377-6.155-1.039L9.237,16.851 c0,0-0.7-1.2,0.4-1.5c1.1-0.3,5.4-1.2,5.4-1.2s1.475-0.494,1.8,0.5c0.5,1.3,4.063,11.112,4.063,11.112S22.6,29,27.4,29 c4.7,0,5.9-3.437,5.7-3.937c-1.2-3-4.993-11.862-4.993-11.862s-0.6-1.1,0.8-1.4c1.4-0.3,3.8-0.7,3.8-0.7s1.105-0.163,1.6,0.8 c0.738,1.437,5.193,11.262,5.193,11.262s1.1,2.9,3.3,2.9c0.464,0,0.834-0.046,1.152-0.104c-0.082,1.635-0.348,3.221-0.817,4.722 C42.541,30.867,41.756,30.963,40.5,30.963z" fill="currentColor"/></svg>
       <span>#{full_torrents}</span>
     </div>
     <div class="full-start__button selector view--trailer">
@@ -150,16 +142,7 @@
 </div>
     `);
 
-    // ВСТАВКА CSS и каркаса
-    $('body').append(Lampa.Template.render('cardify_css', {}, true));
-    $('body').append(Lampa.Template.render('full_start_new', {}, true));
-
-    /**
-     * На каждом показе экрана "full":
-     *  - находим нативный фон (.full-start-new__background | .full-start__background | .full .background),
-     *  - вытаскиваем url картинки (из CSS или <img/srcset>),
-     *  - подставляем в наш .cardify__background внутри каркаса.
-     */
+    // == 3) Бекдроп обновляем при открытии экрана ==
     function updateBackdrop(screen) {
       var $root = screen && typeof screen.search === 'function' ? screen.search() : null;
       var $bg = $root ? $root.find('.full-start-new__background, .full-start__background, .full .background') : $();
@@ -195,16 +178,10 @@
         $card.prepend($layer);
       }
 
-      if (url) {
-        // комбинируем картинку и мягкий градиент в ОДИН background-image (градиент не убьёт картинку)
-        var bg = 'url("' + url + '")';
-        $layer.css('background-image', bg);
-      } else {
-        // без урла — слой просто прозрачный
-        $layer.css('background-image', 'none');
-      }
+      if (url) $layer.css('background-image', 'url("' + url + '")');
+      else     $layer.css('background-image', 'none');
 
-      // Скрываем постер слева на TV (как и было задумано)
+      // На ТВ слева постер прячем
       $card.find('.full-start-new__left').addClass('hide').css('display','none');
     }
 
@@ -213,12 +190,8 @@
     });
   }
 
-  if (window.app) {
-    init();
-  } else {
-    // как у тебя: ждём готовности приложения
-    Lampa.activity.follow('appready', function (e) {
-      if (e && e.type === 'ready') init();
-    });
-  }
+  if (window.app) init();
+  else Lampa.activity.follow('appready', function (e) {
+    if (e && e.type === 'ready') init();
+  });
 })();
