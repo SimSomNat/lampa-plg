@@ -1,180 +1,227 @@
 // @lampa-desc: Плагин преобразует привычный вид карточек, предлагая обновленный интерфейс — более яркий, красочный и привлекательный
 
+// Cardify (fixed v2) — стабильный бекдроп для экрана full в Lampa (TV + Mobile)
+// - Не трогает парсеры, только UI
+// - Левый большой постер остаётся скрытым (если он есть в разметке)
+// - Работает и когда ядро ставит фон как CSS background, и когда как <img>
+// - Если фонового узла нет — создаёт свой .cardify-backdrop
 (function () {
   'use strict';
 
-  // --- настройка (при желании меняй) ---
-  var SCOPE_CLASS = 'cardify-enabled';        // класс на <body> для скоупа CSS
-  var BG_CLASS    = 'cardify__background';     // класс на реальном бг-узле
-  var HIDE_LEFT   = true;                      // прятать левый большой постер
-  // --------------------------------------
+  var SCOPE_CLASS = 'cardify-enabled';
+  var BG_CLASS    = 'cardify__background';
+  var HIDE_LEFT   = true; // скрывать левую колонку (на мобиле её обычно нет — это безопасно)
 
-  // Подстраховка: если есть Lampa.Platform.tv — активируем ТВ-режим (не критично)
-  try { if (window.Lampa && Lampa.Platform && typeof Lampa.Platform.tv === 'function') Lampa.Platform.tv(); } catch(e){}
-
-  // Втыкаем CSS один раз
   function injectCSS() {
-    if (document.getElementById('cardify-fixed-style')) return;
+    if (document.getElementById('cardify-fixed-v2-style')) return;
 
     var css = `
-/* === Cardify (fixed) — CSS скоуп === */
-body.${SCOPE_CLASS} .${BG_CLASS}{
-  position: absolute !important;
-  inset: 0 !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  background-size: cover !important;
-  opacity: 1 !important;
-  z-index: 0 !important;
+/* ===== Cardify v2 — общий фон ===== */
+body.${SCOPE_CLASS} .${BG_CLASS},
+body.${SCOPE_CLASS} .cardify-backdrop{
+  position:absolute !important;
+  top:0; left:0; right:0;
+  height:44vh;              /* TV/desktop */
+  background-position:center center !important;
+  background-repeat:no-repeat !important;
+  background-size:cover !important;
+  opacity:1 !important;
+  z-index:0 !important;
+  pointer-events:none !important;
+}
+@media (max-width:1024px){
+  body.${SCOPE_CLASS} .${BG_CLASS},
+  body.${SCOPE_CLASS} .cardify-backdrop{ height:38vh; } /* планшет */
+}
+@media (max-width:600px){
+  body.${SCOPE_CLASS} .${BG_CLASS},
+  body.${SCOPE_CLASS} .cardify-backdrop{ height:32vh; } /* мобильный */
 }
 
-/* мягкое затемнение сверху и слева, чтобы текст читался */
-body.${SCOPE_CLASS} .${BG_CLASS}::after{
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  /* верхний градиент + боковые легкие градиенты */
+/* затемнение для читаемости текста */
+body.${SCOPE_CLASS} .${BG_CLASS}::after,
+body.${SCOPE_CLASS} .cardify-backdrop::after{
+  content:"";
+  position:absolute; inset:0;
   background:
-    linear-gradient(to bottom, rgba(0,0,0,.60), rgba(0,0,0,.20) 35%, rgba(0,0,0,0) 70%),
+    linear-gradient(to bottom, rgba(0,0,0,.60), rgba(0,0,0,.15) 40%, rgba(0,0,0,0) 75%),
     linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,0) 45%);
 }
 
-/* корневая обертка контента поверх фона */
-body.${SCOPE_CLASS} .full-start, 
+/* корневые контейнеры поверх фона */
+body.${SCOPE_CLASS} .full-start,
 body.${SCOPE_CLASS} .full-start-new,
-body.${SCOPE_CLASS} [data-name="full"]{
-  position: relative;
-  z-index: 1;
+body.${SCOPE_CLASS} [data-name="full"],
+body.${SCOPE_CLASS} .full{
+  position:relative;
+  z-index:1;
 }
 
-/* прячем левый большой постер, но не ломаем сетку */
-${HIDE_LEFT ? `
-body.${SCOPE_CLASS} .full-start__left,
-body.${SCOPE_CLASS} .full-start-new__left{
-  display: none !important;
-}
-` : ''}
-
-/* частая проблема: фон бывает под контейнером — убираем сплошные фоны у оберток */
+/* сделать прозрачными типовые контейнеры фона, если они есть */
 body.${SCOPE_CLASS} .full-start__background,
 body.${SCOPE_CLASS} .full-start-new__background,
 body.${SCOPE_CLASS} .full .background{
-  background-color: transparent !important;
+  background-color:transparent !important;
 }
 
-/* если ядро ставит .dim/.loaded — не мешаем; если нет — мы и так принудили видимость */
-`;
+/* скрыть левую колонку-постер */
+${HIDE_LEFT ? `
+body.${SCOPE_CLASS} .full-start__left,
+body.${SCOPE_CLASS} .full-start-new__left{
+  display:none !important;
+}` : ''}
 
+`;
     var style = document.createElement('style');
-    style.id = 'cardify-fixed-style';
+    style.id = 'cardify-fixed-v2-style';
     style.type = 'text/css';
     style.appendChild(document.createTextNode(css));
     document.head.appendChild(style);
   }
 
-  // Находим корень экрана "full" (карточка)
   function findFullRoot() {
     return (
       document.querySelector('.full-start') ||
       document.querySelector('.full-start-new') ||
+      document.querySelector('.full') ||
       document.querySelector('[data-name="full"]')
     );
   }
 
-  // Находим реальный узел фона (в разных версиях он назывался по-разному)
+  // любой потенциальный бг-узел
   function findBackdropNode(root) {
     if (!root) root = document;
     return (
       root.querySelector('.full-start__background') ||
       root.querySelector('.full-start-new__background') ||
-      // иногда ядро кладет просто .background внутри full
-      root.querySelector('.full .background, .background') ||
-      null
+      root.querySelector('.full .background') ||
+      // широкий поиск по классам
+      root.querySelector('[class*="background"], [class*="backdrop"]')
     );
   }
 
-  // Поднять <img src> в background-image, если фон не задан стилем
+  // достаём URL фона: сначала из CSS, иначе из <img> / srcset
+  function extractBackdropURL(node) {
+    if (!node) return null;
+    try {
+      var cs = getComputedStyle(node);
+      if (cs && cs.backgroundImage && cs.backgroundImage !== 'none') {
+        // background-image: url("..."), вытащим URL
+        var match = cs.backgroundImage.match(/url\\((["']?)(.*?)\\1\\)/);
+        if (match && match[2]) return match[2];
+      }
+    } catch(e){}
+
+    // попробуем <img>
+    var img = node.querySelector('img[src], img[srcset]');
+    if (img) {
+      if (img.currentSrc) return img.currentSrc;
+      if (img.srcset) {
+        // берём самый правый srcset (обычно самый большой)
+        var parts = img.srcset.split(',').map(s => s.trim());
+        var last = parts[parts.length - 1];
+        var url = last && last.split(' ')[0];
+        if (url) return url;
+      }
+      if (img.src) return img.src;
+    }
+
+    return null;
+  }
+
+  // убедиться, что у конкретного узла есть CSS background-image
   function ensureBackgroundImage(bg) {
     try {
       var cs = getComputedStyle(bg);
       var hasBg = cs && cs.backgroundImage && cs.backgroundImage !== 'none';
       if (!hasBg) {
-        var img = bg.querySelector('img[src]');
-        if (img && img.src) {
-          // иногда src может быть временно пустым — проверяем длину
-          bg.style.backgroundImage = 'url("' + img.src + '")';
+        var url = extractBackdropURL(bg);
+        if (!url) {
+          // поищем <img> глубже
+          var deepImg = (bg.closest('.full-start, .full-start-new, .full') || document)
+                        .querySelector('img[class*="backdrop"], img[class*="background"], img[srcset], img[src]');
+          if (deepImg) url = deepImg.currentSrc || deepImg.src || null;
+        }
+        if (url) {
+          bg.style.backgroundImage = 'url("' + url + '")';
         }
       }
     } catch (e) {}
   }
 
-  // Основной хук: включить «шапку»
+  // если бекдроп-узла нет — создаём свой
+  function ensureOwnBackdrop(fullRoot) {
+    var own = fullRoot.querySelector('.cardify-backdrop');
+    if (!own) {
+      own = document.createElement('div');
+      own.className = 'cardify-backdrop';
+      // вставим первым ребёнком, чтобы быть «под» контентом
+      fullRoot.insertBefore(own, fullRoot.firstChild);
+    }
+    // попытаемся добыть URL из любого известного узла, если есть
+    var donor = findBackdropNode(fullRoot);
+    var url = extractBackdropURL(donor) || extractBackdropURL(fullRoot) || null;
+    if (url) own.style.backgroundImage = 'url("' + url + '")';
+    return own;
+  }
+
   function activateBackdrop() {
     var full = findFullRoot();
     if (!full) return false;
 
     document.body.classList.add(SCOPE_CLASS);
+
+    // 1) если есть «родной» фон — используем его
     var bg = findBackdropNode(full);
-    if (!bg) return false;
+    if (bg) {
+      if (!bg.classList.contains(BG_CLASS)) bg.classList.add(BG_CLASS);
+      ensureBackgroundImage(bg);
+      bg.classList.add('loaded'); // на случай, если стили это учитывают
+      return true;
+    }
 
-    // даём наш класс и приводим к ожидаемому виду
-    if (!bg.classList.contains(BG_CLASS)) bg.classList.add(BG_CLASS);
-
-    // если фон не проставлен ядром — поднимем картинку из <img>
-    ensureBackgroundImage(bg);
-
-    // Иногда ядро навешивает .loaded/.dim — мы не требуем их, но добавим loaded для совместимости
-    bg.classList.add('loaded');
-
+    // 2) иначе — создаём свой фоновый слой
+    var own = ensureOwnBackdrop(full);
+    own.classList.add('loaded');
     return true;
   }
 
-  // Прячем левую колонку (если вдруг разметка другая)
   function hideLeftPosterSafe() {
     if (!HIDE_LEFT) return;
     var full = findFullRoot();
     if (!full) return;
-
     var left = full.querySelector('.full-start__left, .full-start-new__left');
     if (left) left.style.setProperty('display','none','important');
   }
 
-  // Реакция на появление/пересборку экрана
   function armObservers() {
-    // 1) M.O. на тело документа — ловим появление экрана full
+    // Ловим появление/пересборку экрана full (актуально и для мобилки)
     var mo = new MutationObserver(function() {
       var full = findFullRoot();
       if (!full) return;
-
-      // как только экран есть — пробуем активировать
-      var ok = activateBackdrop();
+      activateBackdrop();
       hideLeftPosterSafe();
 
-      // 2) Доп. наблюдатель за самим экраном — вдруг фон подгрузится позже
-      if (ok) {
-        var bgMo = new MutationObserver(function() {
-          activateBackdrop();
-        });
-        bgMo.observe(full, { childList: true, subtree: true });
-      }
+      // Доп. наблюдатель за изменениями внутри самого экрана: фон/картинка могли подгрузиться позже
+      var inner = new MutationObserver(function() {
+        activateBackdrop();
+      });
+      inner.observe(full, { childList: true, subtree: true });
     });
-
     mo.observe(document.body, { childList: true, subtree: true });
   }
 
-  // Инициализация — без зависимости от внутренних событий Lampa
   function init() {
-    try { injectCSS(); } catch(e){}
-    // Попытка сразу (на случай, если full уже в DOM)
+    injectCSS();
+    // пробуем сразу (вдруг full уже в DOM)
     activateBackdrop();
     hideLeftPosterSafe();
-    // Наблюдатели на будущее
+    // и на будущее
     armObservers();
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
+    document.addEventListener('DOMContentLoaded', init, { once:true });
   } else {
     init();
   }
