@@ -1,15 +1,14 @@
-// @lampa-desc: Cardify — новый вид стартовой карточки (TV: большая обложка, без постера)
+// @lampa-desc: Cardify — стартовая карточка в TV-режиме: большая обложка (без постера слева)
 (function () {
   'use strict';
 
-  /* ========= 0) POLYFILL Template.render (и кеш Template.add) ========= */
+  /* ========= 0) POLYFILL для Template.render + кеш Template.add ========= */
   function installTemplatePolyfill(){
-    if (!Lampa || !Lampa.Template) return;
+    if (!window.Lampa || !Lampa.Template) return;
     var T = Lampa.Template;
     var _add = T.add && T.add.bind(T);
     var STORE = Object.create(null);
 
-    // перехватываем add, чтобы иметь копию шаблонов
     if (_add){
       T.add = function(name, html){
         STORE[name] = html;
@@ -18,7 +17,7 @@
     }
 
     if (typeof T.render !== 'function'){
-      // простой рендер {var} по данным
+      // упрощённый рендер {var} -> data[var]
       T.render = function(name, data, asString){
         var tpl = STORE[name];
         if (!tpl && typeof T.get === 'function'){
@@ -35,29 +34,20 @@
     }
   }
 
-  /* ========= 1) INIT ========= */
   try { Lampa.Platform.tv(); } catch(e){}
 
   function init() {
-    // не блокируем по origin — в разных билдах отличается
-    try {
-      if (Lampa.Manifest && Lampa.Manifest.origin && Lampa.Manifest.origin !== 'bylampa'){
-        console.log('[Cardify] origin:', Lampa.Manifest.origin);
-      }
-    } catch(e){}
-
-    // нам нужен именно ТВ-режим (на мобиле постер остаётся нативным)
+    // работаем только в TV-режиме; на мобиле не трогаем постер
     if (!Lampa.Platform.get('tv')) {
-      console.log('Cardify: skip (not TV)');
+      console.log('[Cardify] skip: not TV');
       return;
     }
 
     installTemplatePolyfill();
 
-    /* ========= 2) CSS через Template + render ========= */
+    /* ========= 1) CSS через Template + render ========= */
     Lampa.Template.add('cardify_css', `
 <style>
-/* раскладка */
 .full-start-new.cardify{position:relative}
 .cardify .full-start-new__body{height:80vh}
 .cardify .full-start-new__right{display:flex;align-items:flex-end}
@@ -78,7 +68,7 @@
   z-index:0; pointer-events:none;
   background-position:center center; background-repeat:no-repeat; background-size:cover;
 }
-/* делаем мягче, чтобы не получилось “чёрной стенки” */
+/* мягкие затемнения, чтобы не было «чёрной стены» */
 .full-start-new.cardify .cardify__background::after{
   content:""; position:absolute; inset:0; pointer-events:none;
   background:
@@ -100,13 +90,13 @@
 .full-start-new__background,
 .full .background { background-color:transparent !important; }
 
-/* на ТВ прячем левый постер */
+/* на ТВ прячем левый постер намертво */
 .full-start-new.cardify .full-start-new__left{ display:none !important; }
 </style>
 `);
     $('body').append(Lampa.Template.render('cardify_css', {}, true));
 
-    /* ========= 3) Переопределяем шаблон стартового блока ========= */
+    /* ========= 2) Переопределяем шаблон стартового блока ========= */
     Lampa.Template.add('full_start_new', `
 <div class="full-start-new cardify">
   <div class="cardify__background"></div>
@@ -172,25 +162,45 @@
 </div>
 `);
 
-    /* ========= 4) Достаём URL обложки надёжнее + ретраи ========= */
+    /* ========= 3) Поиск URL обложки + слежение за ленивой подстановкой ========= */
     function parseCssUrl(str){
       if (!str || str === 'none') return '';
-      var m = str.match(/url\((["']?)(.*?)\1\)/i);
-      return m && m[2] ? m[2] : '';
+      // если несколько url(...) — берём последний (обычно самое чёткое)
+      var m = str.match(/url\((["']?)(.*?)\1\)/gi);
+      if (!m || !m.length) return '';
+      var last = m[m.length - 1];
+      var mm = last.match(/url\((["']?)(.*?)\1\)/i);
+      return (mm && mm[2]) ? mm[2] : '';
     }
 
     function pickBackdropUrl($root){
       if (!$root || !$root.length) return '';
 
-      // 1) любые фоновые контейнеры
-      var $bg = $root.find('.full-start-new__background, .full-start__background, .full .background, .background, [class*="background"]');
-      for (var i=0;i<$bg.length;i++){
-        var cs = getComputedStyle($bg[i]);
-        var u = parseCssUrl(cs && cs.backgroundImage);
-        if (u) return u;
+      // 0) inline style на кандидатов
+      var $cand = $root.find('.full-start-new__background, .full-start__background, .full .background, .background, [class*="background"]');
+      for (var i=0;i<$cand.length;i++){
+        var node = $cand[i];
+        if (node.style && node.style.backgroundImage){
+          var u0 = parseCssUrl(node.style.backgroundImage);
+          if (u0) return u0;
+        }
       }
 
-      // 2) изображения бекдропа
+      // 1) computed background-image на любом узле
+      var all = $root.find('*');
+      for (i=0;i<all.length;i++){
+        var cs = null;
+        try { cs = getComputedStyle(all[i]); } catch(e){}
+        if (!cs) continue;
+        var bi = cs.backgroundImage;
+        if (!bi || bi === 'none') continue;
+        // пропускаем чистые градиенты
+        if (/gradient\(/i.test(bi) && !/url\(/i.test(bi)) continue;
+        var u1 = parseCssUrl(bi);
+        if (u1 && /^(https?:|data:|blob:)/i.test(u1)) return u1;
+      }
+
+      // 2) <img> кандидат
       var $imgs = $root.find('img[data-type="backdrop"], img.backdrop, img[srcset], img[src]');
       for (i=0;i<$imgs.length;i++){
         var img = $imgs[i];
@@ -204,10 +214,10 @@
         }
       }
 
-      // 3) data-атрибуты
-      var cand = $root.find('[data-background],[data-backdrop]').get(0);
-      if (cand){
-        return cand.getAttribute('data-background') || cand.getAttribute('data-backdrop') || '';
+      // 3) data-* атрибуты
+      var meta = $root.find('[data-background],[data-backdrop]').get(0);
+      if (meta){
+        return meta.getAttribute('data-background') || meta.getAttribute('data-backdrop') || '';
       }
 
       return '';
@@ -215,7 +225,9 @@
 
     function updateBackdropOnce(screen){
       var $root = screen && typeof screen.search === 'function' ? screen.search() : null;
-      var url = pickBackdropUrl($root || $('.full'));
+      if (!$root || !$root.length) $root = $('.full, .full-start, body').first();
+
+      var url = pickBackdropUrl($root);
 
       var $card = $('.full-start-new.cardify');
       var $layer = $card.find('.cardify__background');
@@ -223,24 +235,58 @@
         $layer = $('<div class="cardify__background"></div>');
         $card.prepend($layer);
       }
+
       if (url) $layer.css('background-image','url("'+url+'")');
       else     $layer.css('background-image','none');
+
+      // на ТВ прячем постер слева
+      $card.find('.full-start-new__left').addClass('hide').css('display','none');
     }
 
-    function updateBackdropWithRetries(screen){
-      // несколько попыток: при асинхронной подстановке фона
-      var tries = 6;
-      (function tick(){
+    function updateBackdropWithObserver(screen){
+      updateBackdropOnce(screen);
+
+      var $root = screen && typeof screen.search === 'function' ? screen.search() : $('.full').first();
+      if (!$root || !$root.length) return;
+
+      var node = $root.get(0);
+      var scheduled = false;
+
+      function schedule(){
+        if (scheduled) return;
+        scheduled = true;
+        setTimeout(function(){
+          scheduled = false;
+          updateBackdropOnce(screen);
+        }, 200);
+      }
+
+      if (!node.__cardifyObserver){
+        var obs = new MutationObserver(function(muts){
+          for (var i=0;i<muts.length;i++){
+            var m = muts[i];
+            if (m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'src' || m.attributeName === 'srcset' || m.attributeName.indexOf('data-') === 0)){
+              schedule(); break;
+            }
+            if (m.type === 'childList'){ schedule(); break; }
+          }
+        });
+        obs.observe(node, { attributes:true, childList:true, subtree:true, attributeFilter: ['style','src','srcset','data-background','data-backdrop'] });
+        node.__cardifyObserver = obs;
+      }
+
+      // дополнительные ретраи
+      var tries = 5;
+      (function retry(){
         updateBackdropOnce(screen);
         tries--;
-        if (tries > 0){
-          setTimeout(tick, tries >= 3 ? 180 : 350);
-        }
+        if (tries>0) setTimeout(retry, 250);
       })();
     }
 
+    /* ========= 4) Подписка на экран ========= */
     Lampa.Listener.follow('full', function (evt) {
-      if (evt && evt.type === 'complite') updateBackdropWithRetries(evt.object);
+      if (evt && evt.type === 'complite') updateBackdropWithObserver(evt.object);
     });
   }
 
