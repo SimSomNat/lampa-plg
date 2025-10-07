@@ -1,261 +1,137 @@
-// @lampa-desc: Плагин преобразует привычный вид карточек, предлагая обновленный интерфейс — более яркий, красочный и привлекательный
-
-// Cardify.fix.v3 — мобилка с постером, TV c большой обложкой
-// - Mobile: возвращаем постер (снимаем .hide, показываем левую колонку)
-// - TV: прячем постер и стабильно включаем бекдроп (если нужно, создаём свой слой)
-// - Не трогаем парсеры/источники, только UI.
+// @lampa-desc: Плагин преобразует привычный вид карточек, предлагая обновленный интерфейс
 
 (function () {
   'use strict';
 
-  var SCOPE = 'cardify-v3';
-  var BODY  = document.body;
-
-  // --------- Определение платформы (TV vs Mobile) ----------
   function isTV() {
     try {
       if (window.Lampa && Lampa.Platform) {
-        if (typeof Lampa.Platform.tv === 'function') return !!Lampa.Platform.tv();
-        if (typeof Lampa.Platform.is === 'function') return !!Lampa.Platform.is('tv');
-        if (typeof Lampa.Platform.source === 'string') return Lampa.Platform.source === 'tv';
+        if (typeof Lampa.Platform.get === 'function') return !!Lampa.Platform.get('tv');
+        if (typeof Lampa.Platform.is === 'function')  return !!Lampa.Platform.is('tv');
       }
     } catch (e) {}
-    // подстраховка по userAgent для Android TV / Smart TV
-    return /(smart[- ]?tv|hbbtv|tizen|webos|bravia|aftt|aftm|aftb|shield|mibox|hisense|\btv\b)/i.test(navigator.userAgent);
+    return false;
   }
 
-  // --------- Вспомогалки DOM ----------
-  function q(sel, root){ return (root||document).querySelector(sel); }
-  function qa(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
-
-  function fullRoot(){
-    return q('.full-start') || q('.full-start-new') || q('.full') || q('[data-name="full"]');
-  }
-
-  function findBackdropNode(root){
-    root = root || fullRoot() || document;
-    return q('.full-start__background', root)
-        || q('.full-start-new__background', root)
-        || q('.full .background', root)
-        || q('[class*="background"], [class*="backdrop"]', root)
-        || null;
-  }
-
-  // достаём url фона откуда угодно: CSS background-image, <img>, srcset
-  function extractURL(node){
-    if (!node) return null;
-    try {
-      var cs = getComputedStyle(node);
-      if (cs && cs.backgroundImage && cs.backgroundImage !== 'none'){
-        var m = cs.backgroundImage.match(/url\((["']?)(.*?)\1\)/);
-        if (m && m[2]) return m[2];
-      }
-    } catch(e){}
-    var img = node.querySelector('img[src], img[srcset]');
-    if (img){
-      if (img.currentSrc) return img.currentSrc;
-      if (img.srcset){
-        var parts = img.srcset.split(',').map(function(s){return s.trim();});
-        var last = parts[parts.length-1];
-        var url  = last && last.split(' ')[0];
-        if (url) return url;
-      }
-      if (img.src) return img.src;
-    }
-    return null;
-  }
-
-  // --------- CSS (вешаем только один раз) ----------
-  function injectCSS(){
-    if (q('#'+SCOPE+'-style')) return;
+  function injectCSS() {
+    if (document.getElementById('cardify-fixed-style')) return;
     var css = `
-/* Скоупим всё под body.cardify-v3 */
-body.${SCOPE}{}
+/* === Cardify fixed (TV only) === */
 
-/* === TV режим: большая "шапка"-обложка, постер скрыт === */
-body.${SCOPE}.mode-tv .cardify__background,
-body.${SCOPE}.mode-tv .cardify-backdrop{
-  position:absolute !important;
-  top:0; left:0; right:0;
-  height:44vh;                 /* можно подправить */
-  background-position:center center !important;
-  background-repeat:no-repeat !important;
-  background-size:cover !important;
-  opacity:1 !important;
-  z-index:0 !important;
-  pointer-events:none !important;
-}
-@media (max-width:1280px){
-  body.${SCOPE}.mode-tv .cardify__background,
-  body.${SCOPE}.mode-tv .cardify-backdrop{ height:40vh; }
-}
-body.${SCOPE}.mode-tv .cardify__background::after,
-body.${SCOPE}.mode-tv .cardify-backdrop::after{
-  content:"";
+/* Слой фона: ничего не перезаписываем шортом background! */
+.cardify__background{
   position:absolute; inset:0;
+  background-position:center center;
+  background-repeat:no-repeat;
+  background-size:cover;
+  z-index:0;
+  opacity:1;
+  pointer-events:none;
+}
+
+/* Градиент СВЕРХУ картинки — отдельным псевдоэлементом, чтобы не убивать image */
+body:not(.menu--open) .cardify__background::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
   background:
     linear-gradient(to bottom, rgba(0,0,0,.60), rgba(0,0,0,.15) 40%, rgba(0,0,0,0) 75%),
     linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,0) 45%);
 }
 
-/* корневой full поверх фона */
-body.${SCOPE}.mode-tv .full-start,
-body.${SCOPE}.mode-tv .full-start-new,
-body.${SCOPE}.mode-tv [data-name="full"],
-body.${SCOPE}.mode-tv .full{
-  position:relative; z-index:1;
-}
+/* Контентная область поверх фона */
+.full-start, .full-start-new, [data-name="full"], .full{ position:relative; z-index:1; }
 
-/* скрываем левый постер только на TV */
-body.${SCOPE}.mode-tv .full-start__left,
-body.${SCOPE}.mode-tv .full-start-new__left{
-  display:none !important;
-}
+/* На TV прячем левый постер */
+.full-start__left, .full-start-new__left{ display:none !important; }
 
-/* делаем прозрачными любые родные фон-контейнеры */
-body.${SCOPE}.mode-tv .full-start__background,
-body.${SCOPE}.mode-tv .full-start-new__background,
-body.${SCOPE}.mode-tv .full .background{
+/* На всякий случай — встроенные фоновые контейнеры делаем прозрачными, но не трогаем их image */
+.full-start__background, .full-start-new__background, .full .background{
   background-color:transparent !important;
-}
-
-/* === Mobile режим: постер обязан быть видим === */
-body.${SCOPE}.mode-mobile .full-start__left,
-body.${SCOPE}.mode-mobile .full-start-new__left{
-  display:block !important;
-}
-body.${SCOPE}.mode-mobile .full-start-new__left.hide,
-body.${SCOPE}.mode-mobile .full-start__left.hide{
-  display:block !important;
-}
-body.${SCOPE}.mode-mobile .full-start-new__poster,
-body.${SCOPE}.mode-mobile .full-start__poster{
-  opacity:1 !important;
-  visibility:visible !important;
 }
 `;
     var st = document.createElement('style');
-    st.id = SCOPE+'-style';
+    st.id = 'cardify-fixed-style';
     st.type = 'text/css';
     st.appendChild(document.createTextNode(css));
     document.head.appendChild(st);
   }
 
-  // --------- TV: включаем бекдроп, если нужно — создаём свой слой ----------
-  function ensureBackgroundImage(bg){
-    try {
-      var cs = getComputedStyle(bg);
-      var has = cs && cs.backgroundImage && cs.backgroundImage !== 'none';
-      if (!has){
-        var url = extractURL(bg) || extractURL(bg.closest('.full-start, .full-start-new, .full')) || null;
-        if (url) bg.style.backgroundImage = 'url("'+url+'")';
-      }
-    } catch(e){}
+  // ищем корень экрана карточки
+  function getFullRoot() {
+    return document.querySelector('.full-start, .full-start-new, .full, [data-name="full"]');
   }
 
-  function ensureOwnBackdrop(root){
-    var host = root || fullRoot();
+  // ищем «родной» фон в любых разметках
+  function findNativeBackdrop(root) {
+    root = root || getFullRoot() || document;
+    return root.querySelector(
+      '.full-start-new__background, .full-start__background, .full .background, [class*="background"], [class*="backdrop"]'
+    );
+  }
+
+  // если фона нет — создаём свой слой
+  function ensureOwnBackdrop(root) {
+    var host = root || getFullRoot();
     if (!host) return null;
-    var layer = q('.cardify-backdrop', host);
-    if (!layer){
+    var layer = host.querySelector('.cardify__background');
+    if (!layer) {
       layer = document.createElement('div');
-      layer.className = 'cardify-backdrop';
+      layer.className = 'cardify__background';
       host.insertBefore(layer, host.firstChild);
     }
-    // наполняем из любого донорского узла
-    var donor = findBackdropNode(host) || host;
-    var url   = extractURL(donor);
-    if (url) layer.style.backgroundImage = 'url("'+url+'")';
+    // Попробуем взять src из любой картинки-бекдропа внутри экрана
+    var donorImg = host.querySelector(
+      '.full-start-new__background img, .full-start__background img, .full .background img, img[class*="backdrop"], img[srcset], img[src]'
+    );
+    var url = donorImg ? (donorImg.currentSrc || donorImg.src) : '';
+    if (url && !layer.style.backgroundImage) layer.style.backgroundImage = 'url("' + url + '")';
     return layer;
   }
 
-  function activateTV(){
-    BODY.classList.add(SCOPE, 'mode-tv');
-    BODY.classList.remove('mode-mobile');
+  function activateBackdrop(screenObj) {
+    // screenObj.search() — это jQuery-обертка контейнера экрана
+    var $root = screenObj && typeof screenObj.search === 'function' ? screenObj.search() : null;
+    var rootEl = $root && $root.length ? $root.get(0) : getFullRoot();
 
-    var root = fullRoot();
-    if (!root) return;
-
-    // Прячем левую колонку (если есть)
-    var left = q('.full-start__left, .full-start-new__left', root);
-    if (left) left.style.setProperty('display','none','important');
-
-    // Стабильный фон: используем родной узел, иначе создаём свой
-    var bg = findBackdropNode(root);
-    if (bg){
-      bg.classList.add('cardify__background','loaded');
-      ensureBackgroundImage(bg);
-    } else {
-      ensureOwnBackdrop(root);
+    // 1) Пытаемся использовать «родной» фон
+    var native = null;
+    if ($root && $root.length) {
+      native = $root.find('.full-start-new__background, .full-start__background, .full .background').get(0);
+      if (!native) native = $root.find('[class*="background"], [class*="backdrop"]').get(0);
     }
+    if (!native) native = findNativeBackdrop(rootEl);
+
+    if (native) {
+      native.classList.add('cardify__background'); // стили и градиенты применятся
+      return;
+    }
+
+    // 2) Фаллбэк: создаём собственный слой и тянем картинку
+    ensureOwnBackdrop(rootEl);
   }
 
-  // --------- Mobile: возвращаем постер и не трогаем фон ----------
-  function activateMobile(){
-    BODY.classList.add(SCOPE, 'mode-mobile');
-    BODY.classList.remove('mode-tv');
-
-    var root = fullRoot();
-    if (!root) return;
-
-    // Показать левую колонку и снять .hide (в исходном шаблоне он часто стоит)
-    qa('.full-start__left, .full-start-new__left', root).forEach(function(el){
-      el.classList.remove('hide');
-      el.style.setProperty('display','block','important');
-    });
-
-    // На всякий: показать сам постер
-    qa('.full-start__poster, .full-start-new__poster', root).forEach(function(el){
-      el.style.setProperty('opacity','1','important');
-      el.style.setProperty('visibility','visible','important');
-    });
-  }
-
-  // --------- Наблюдатели: экран "full" может пересобираться ----------
-  function observe(){
-    var bootedForThisScreen = null;
-
-    var mo = new MutationObserver(function(){
-      var root = fullRoot();
-      if (!root) { bootedForThisScreen = null; return; }
-
-      // чтобы не дёргать лишний раз — отмечаем, что уже применяли к этому корню
-      if (bootedForThisScreen === root) return;
-      bootedForThisScreen = root;
-
-      if (isTV()) {
-        activateTV();
-        // внутри экрана следим за подгрузкой картинок, чтобы добить бекдроп
-        var inner = new MutationObserver(function(){
-          activateTV();
-        });
-        inner.observe(root, { childList:true, subtree:true });
-      } else {
-        activateMobile();
-        // если мобильный пересобрал DOM — вернём постер снова
-        var innerM = new MutationObserver(function(){
-          activateMobile();
-        });
-        innerM.observe(root, { childList:true, subtree:true });
+  function init() {
+    // мягко предупредим, но не блокируем (раньше тут было "Ошибка доступа" и return)
+    try {
+      if (Lampa.Manifest && Lampa.Manifest.origin && Lampa.Manifest.origin !== 'bylampa') {
+        if (Lampa.Noty && typeof Lampa.Noty.show === 'function') {
+          Lampa.Noty.show('Cardify: неофициальная сборка — работаю в щадящем режиме');
+        }
       }
-    });
+    } catch (e) {}
 
-    mo.observe(document.body, { childList:true, subtree:true });
-  }
-
-  // --------- Инициализация ----------
-  function init(){
+    if (!isTV()) return;      // только TV
     injectCSS();
 
-    // Первый прогон
-    if (isTV()) activateTV(); else activateMobile();
-
-    // Наблюдать за дальнейшими заменами экрана
-    observe();
+    // хук на экран карточки
+    Lampa.Listener.follow('full', function (evt) {
+      if (evt && evt.type === 'complite') {
+        activateBackdrop(evt.object);
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once:true });
+    document.addEventListener('DOMContentLoaded', init, { once: true });
   } else {
     init();
   }
